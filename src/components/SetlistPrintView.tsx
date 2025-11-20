@@ -80,7 +80,7 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
               {setlist.items
                 .slice()
                 .sort((a, b) => a.position - b.position)
-                .map((item, index) => {
+                .map((item) => {
                   const song = getSongById(item.songId);
                   if (!song) return null;
 
