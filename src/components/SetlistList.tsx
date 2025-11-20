@@ -11,7 +11,7 @@ export function SetlistList({ setlists, onSelect, onDelete, selectedSetlistId }:
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
     try {
-      let day: string, month: string, year: string;
+      let day: string, year: string;
       
       // Handle different date formats
       if (dateString.includes('/')) {

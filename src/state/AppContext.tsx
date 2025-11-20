@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { Song, Setlist, SetlistItem } from '../types';
 import * as n8nClient from '../api/n8nClient';
 
@@ -21,10 +22,6 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [songs, setSongs] = useState<Song[]>([]);

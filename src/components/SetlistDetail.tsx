@@ -12,7 +12,7 @@ interface SetlistDetailProps {
 }
 
 export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIsSongInSetlist }: SetlistDetailProps) {
-  const { songs, setlists, updateSetlist, deleteSetlist, addItemToSetlist, removeItemFromSetlist, updateSetlistItem, reorderSetlistItems } = useApp();
+  const { songs, setlists, updateSetlist, deleteSetlist, reorderSetlistItems } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
   const [songSearchQuery, setSongSearchQuery] = useState('');
@@ -186,7 +186,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
     try {
-      let day: string, month: string, year: string;
+      let day: string, year: string;
       
       // Handle different date formats
       if (dateString.includes('/')) {

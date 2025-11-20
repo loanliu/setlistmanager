@@ -1,4 +1,4 @@
-import type { Setlist, Song, SetlistItem } from '../types';
+import type { Setlist, Song } from '../types';
 
 interface SetlistPrintViewProps {
   setlist: Setlist;
