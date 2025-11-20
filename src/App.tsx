@@ -1,36 +1,123 @@
 import { useState } from 'react';
 import { SongsView } from './components/SongsView';
-import { SetlistsView } from './components/SetlistsView';
+import { SetlistList } from './components/SetlistList';
+import { SetlistDetail } from './components/SetlistDetail';
+import { SetlistForm } from './components/SetlistForm';
+import { useApp } from './state/AppContext';
+import type { Setlist } from './types';
 import './App.css';
 
-type View = 'songs' | 'setlists';
-
 function App() {
-  const [currentView, setCurrentView] = useState<View>('songs');
+  const { isLoading, error, clearError, setlists, addSetlist, deleteSetlist } = useApp();
+  const [selectedSetlist, setSelectedSetlist] = useState<Setlist | null>(null);
+  const [showNewSetlistForm, setShowNewSetlistForm] = useState(false);
+  const [addSongToSetlistCallback, setAddSongToSetlistCallback] = useState<((songId: string) => void) | null>(null);
+  const [isSongInSetlistCallback, setIsSongInSetlistCallback] = useState<((songId: string) => boolean) | null>(null);
+
+  const handleSelectSetlist = (setlist: Setlist) => {
+    setSelectedSetlist(setlist);
+    setShowNewSetlistForm(false);
+  };
+
+  const handleLoadEmptySetlist = () => {
+    setSelectedSetlist(null);
+    setShowNewSetlistForm(true);
+  };
+
+  const handleCreateSetlist = async (setlistData: Omit<Setlist, 'id' | 'items'>) => {
+    try {
+      await addSetlist(setlistData);
+      setShowNewSetlistForm(false);
+    } catch (error) {
+      console.error('Failed to create setlist:', error);
+    }
+  };
+
+  const handleBackFromDetail = () => {
+    setSelectedSetlist(null);
+    setAddSongToSetlistCallback(null);
+  };
+
+  // Get the latest version of the selected setlist from context
+  const currentSetlist = selectedSetlist 
+    ? setlists.find((s) => s.id === selectedSetlist.id) || selectedSetlist
+    : null;
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1 className="app-title">Setlist Manager</h1>
-        <nav className="app-nav">
-          <button
-            className={`nav-button ${currentView === 'songs' ? 'active' : ''}`}
-            onClick={() => setCurrentView('songs')}
-          >
-            Songs
-          </button>
-          <button
-            className={`nav-button ${currentView === 'setlists' ? 'active' : ''}`}
-            onClick={() => setCurrentView('setlists')}
-          >
-            Setlists
-          </button>
-        </nav>
-      </header>
+      {error && (
+        <div className="error-banner">
+          <span>{error}</span>
+          <button onClick={clearError} className="error-close">×</button>
+        </div>
+      )}
 
-      <main className="app-main">
-        {currentView === 'songs' && <SongsView />}
-        {currentView === 'setlists' && <SetlistsView />}
+      <main className="app-main three-column-layout">
+        {isLoading ? (
+          <div className="loading-state">Loading...</div>
+        ) : (
+          <>
+            {/* Left Column: Previous Setlists */}
+            <div className="column-left">
+              <div className="column-header">
+                <h2>Previous setlists</h2>
+              </div>
+              <button className="btn-primary btn-load-empty" onClick={handleLoadEmptySetlist}>
+                Load empty setlist
+              </button>
+              <SetlistList
+                setlists={setlists}
+                onSelect={handleSelectSetlist}
+                onDelete={deleteSetlist}
+                selectedSetlistId={currentSetlist?.id}
+              />
+            </div>
+
+            {/* Middle Column: Current Setlist */}
+            <div className="column-middle">
+              {showNewSetlistForm ? (
+                <div className="column-content">
+                  <div className="column-header">
+                    <h2>New Setlist</h2>
+                    <button className="btn-back" onClick={() => setShowNewSetlistForm(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                  <SetlistForm onSubmit={handleCreateSetlist} onCancel={() => setShowNewSetlistForm(false)} />
+                </div>
+              ) : currentSetlist ? (
+                <SetlistDetail 
+                  setlist={currentSetlist} 
+                  onBack={handleBackFromDetail}
+                  onRegisterAddSong={(callback) => {
+                    setAddSongToSetlistCallback(() => callback);
+                  }}
+                  onRegisterIsSongInSetlist={(callback) => {
+                    setIsSongInSetlistCallback(() => callback);
+                  }}
+                />
+              ) : (
+                <div className="column-content">
+                  <div className="column-header">
+                    <h2>Setlist</h2>
+                  </div>
+                  <div className="empty-state">
+                    <p>Select a setlist from the left or create a new one to get started.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Songs */}
+            <div className="column-right">
+              <SongsView 
+                selectedSetlist={currentSetlist}
+                onAddToSetlist={addSongToSetlistCallback || undefined}
+                isSongInSetlist={isSongInSetlistCallback || undefined}
+              />
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

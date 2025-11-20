@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../state/AppContext';
-import { Setlist } from '../types';
+import type { Setlist } from '../types';
 import { SetlistList } from './SetlistList';
 import { SetlistDetail } from './SetlistDetail';
 import { SetlistForm } from './SetlistForm';
@@ -14,9 +14,13 @@ export function SetlistsView() {
     setShowForm(true);
   };
 
-  const handleSubmit = (setlistData: Omit<Setlist, 'id' | 'items'>) => {
-    addSetlist(setlistData);
-    setShowForm(false);
+  const handleSubmit = async (setlistData: Omit<Setlist, 'id' | 'items'>) => {
+    try {
+      await addSetlist(setlistData);
+      setShowForm(false);
+    } catch (error) {
+      console.error('Failed to create setlist:', error);
+    }
   };
 
   const handleSelect = (setlist: Setlist) => {

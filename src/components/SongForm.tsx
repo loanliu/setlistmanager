@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Song } from '../types';
+import type { Song } from '../types';
 
 interface SongFormProps {
   song?: Song;
@@ -31,6 +31,7 @@ export function SongForm({ song, onSubmit, onCancel }: SongFormProps) {
       artist: artist || undefined,
       singer: singer || undefined,
       key: key || undefined,
+      tempoBmp: song?.tempoBmp || undefined, // Preserve tempoBmp from existing song
       notes: notes || undefined,
     });
   };

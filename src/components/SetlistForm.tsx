@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Setlist } from '../types';
+import type { Setlist } from '../types';
 
 interface SetlistFormProps {
   setlist?: Setlist;
