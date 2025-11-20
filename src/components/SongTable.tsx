@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { Song, Setlist } from '../types';
 
 interface SongTableProps {
@@ -7,21 +8,16 @@ interface SongTableProps {
   selectedSetlist?: Setlist | null;
   onAddToSetlist?: (songId: string) => void;
   isSongInSetlist?: (songId: string) => boolean;
+  currentSetlistSongIds?: string[];
 }
 
-export function SongTable({ songs, onEdit, onDelete, selectedSetlist, onAddToSetlist, isSongInSetlist: checkIsSongInSetlist }: SongTableProps) {
+export function SongTable({ songs, onEdit, onDelete, selectedSetlist, onAddToSetlist, isSongInSetlist: checkIsSongInSetlist, currentSetlistSongIds }: SongTableProps) {
   if (songs.length === 0) {
     return <p className="empty-state">No songs yet. Add your first song!</p>;
   }
 
-  const isSongInSetlist = (songId: string): boolean => {
-    if (!selectedSetlist) return false;
-    if (checkIsSongInSetlist) {
-      return checkIsSongInSetlist(songId);
-    }
-    // Fallback: check saved items only
-    return selectedSetlist.items.some((item) => item.songId === songId);
-  };
+  // currentSetlistSongIds is used to force re-render when setlist items change
+  // This ensures the Add button visibility updates when songs are added/removed locally
 
   return (
     <div className="table-container">
@@ -37,7 +33,18 @@ export function SongTable({ songs, onEdit, onDelete, selectedSetlist, onAddToSet
         </thead>
         <tbody>
           {songs.map((song) => {
-            const isInSetlist = isSongInSetlist(song.id);
+            // Check if song is in setlist - use currentSetlistSongIds for immediate updates
+            let isInSetlist = false;
+            if (currentSetlistSongIds && currentSetlistSongIds.length > 0) {
+              // Use the current song IDs array for immediate updates (includes unsaved changes)
+              isInSetlist = currentSetlistSongIds.includes(song.id);
+            } else if (checkIsSongInSetlist) {
+              // Fallback to callback if array not available
+              isInSetlist = checkIsSongInSetlist(song.id);
+            } else if (selectedSetlist) {
+              // Final fallback: check saved items only
+              isInSetlist = selectedSetlist.items.some((item) => item.songId === song.id);
+            }
             const canAddToSetlist = selectedSetlist && onAddToSetlist && !isInSetlist;
             
             return (

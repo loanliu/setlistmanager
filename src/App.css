@@ -1008,24 +1008,119 @@
 
 /* Print Media Queries */
 @media print {
-  /* Hide everything except print content */
-  body * {
+  /* Reset everything */
+  @page {
+    margin: 0.3in;
+    size: letter;
+  }
+
+  /* Reset html and body */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  /* Hide everything with visibility */
+  * {
     visibility: hidden;
   }
 
-  .print-view-container,
-  .print-view-container * {
-    visibility: visible;
+  /* Show the entire parent chain */
+  body,
+  #root,
+  .app,
+  .app-main,
+  .three-column-layout,
+  .column-middle,
+  .column-content,
+  .view-container {
+    visibility: visible !important;
   }
 
+  /* Show modal overlay and ALL its descendants */
+  .modal-overlay,
+  .modal-overlay * {
+    visibility: visible !important;
+  }
+
+  /* Hide other columns completely */
+  .column-left,
+  .column-right {
+    display: none !important;
+  }
+
+  /* Hide content in column-content/view-container except modal */
+  .column-content > *:not(.modal-overlay),
+  .view-container > *:not(.modal-overlay) {
+    display: none !important;
+  }
+
+  /* Ensure modal is displayed */
+  .modal-overlay {
+    display: block !important;
+  }
+
+  /* Remove all height constraints to prevent extra pages */
+  html, body, #root, .app, .app-main, .three-column-layout, .column-middle, .column-content, .view-container {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* Make modal overlay static - completely remove positioning */
+  .modal-overlay {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    background: white !important;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: auto !important;
+  }
+
+  /* Make modal content minimal */
+  .print-modal {
+    position: static !important;
+    box-shadow: none !important;
+    border: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    display: block !important;
+  }
+
+  /* Print view container - only this should be visible */
   .print-view-container {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    background: white;
-    padding: 0;
-    margin: 0;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   /* Hide controls when printing */
@@ -1036,63 +1131,72 @@
 
   /* Print-specific styles */
   .print-view-content {
-    background: white;
-    color: black;
-    padding: 0.25in;
-    max-width: 100%;
-    margin: 0;
-    border-radius: 0;
+    background: white !important;
+    color: black !important;
+    padding: 0.15in !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page-break-inside: auto !important;
   }
 
   .print-header {
     border-bottom: 1px solid black;
     padding-bottom: 0.25rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
   }
 
   .print-title {
     color: black;
-    font-size: 1.5rem;
-    margin: 0 0 0.125rem 0;
+    font-size: 1.25rem;
+    margin: 0 0 0.1rem 0;
+    font-weight: bold;
   }
 
   .print-date,
   .print-location {
     color: #333;
-    font-size: 0.9rem;
-    margin: 0.125rem 0;
+    font-size: 0.85rem;
+    margin: 0.05rem 0;
   }
 
   .print-songs {
-    margin: 0.5rem 0;
+    margin: 0.25rem 0;
   }
 
   .print-song-list {
-    padding-left: 1.5rem;
+    padding-left: 1.25rem;
     margin: 0;
+    list-style: decimal;
   }
 
   .print-song-item {
     color: black;
     page-break-inside: avoid;
-    margin-bottom: 0.25rem;
-    padding: 0.125rem 0;
-    line-height: 1.3;
+    break-inside: avoid;
+    margin-bottom: 0.1rem;
+    padding: 0.05rem 0;
+    line-height: 1.2;
+    font-size: 0.9rem;
   }
 
   .print-song-title {
     color: black;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 0.9rem;
     display: inline;
     margin-right: 0.5rem;
   }
 
   .print-song-details {
     color: #555;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     display: inline;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .print-song-key,
@@ -1125,29 +1229,65 @@
     line-height: 1.3;
   }
 
-  /* Remove modal overlay styles for print */
-  .modal-overlay {
-    position: static;
-    background: transparent;
-  }
-
-  .print-modal {
-    position: static;
-    box-shadow: none;
-    border: none;
-  }
-
-  /* Page break settings */
+  /* Page break settings - allow breaks in list but avoid breaking items */
   .print-song-list {
     page-break-inside: auto;
+    break-inside: auto;
   }
 
   .print-song-item {
     page-break-inside: avoid;
+    break-inside: avoid;
+    orphans: 1;
+    widows: 1;
   }
 
-  /* Remove margins for printing */
+  /* Compact page margins - prevent extra pages */
   @page {
-    margin: 0.25in;
+    margin: 0.3in;
+    size: letter;
+    marks: none;
+  }
+
+  /* Prevent any element from creating extra pages */
+  * {
+    page-break-after: auto !important;
+    page-break-before: auto !important;
+  }
+
+  /* Prevent page breaks in header */
+  .print-header {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  /* Allow content to flow naturally - no forced breaks */
+  .print-view-content {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  /* Ensure NO element creates extra pages */
+  .print-view-container,
+  .modal-overlay,
+  .print-modal,
+  .print-view-content {
+    page-break-after: auto !important;
+    break-after: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  /* Force all containers to only be as tall as their content */
+  * {
+    max-height: none !important;
+  }
+
+  .print-view-container,
+  .modal-overlay,
+  .print-modal,
+  .print-view-content {
+    max-height: none !important;
   }
 }

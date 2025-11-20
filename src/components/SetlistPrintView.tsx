@@ -15,12 +15,33 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
     try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
+      let day: string, year: string;
+      
+      // Handle different date formats
+      if (dateString.includes('/')) {
+        // Parse MM/DD/YYYY format (from Google Sheets)
+        const parts = dateString.split('/');
+        const monthNum = parseInt(parts[0], 10);
+        day = parts[1];
+        year = parts[2];
+        const date = new Date(parseInt(year), monthNum - 1, parseInt(day));
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      } else if (dateString.includes('-')) {
+        // Parse YYYY-MM-DD format (from n8n conversion)
+        const parts = dateString.split('-');
+        year = parts[0];
+        const monthNum = parseInt(parts[1], 10);
+        day = parts[2];
+        const date = new Date(parseInt(year), monthNum - 1, parseInt(day));
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      } else {
+        // Try default Date parsing
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+          return dateString;
+        }
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      }
     } catch {
       return dateString;
     }
@@ -56,23 +77,26 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
             <p className="print-empty">No songs in this setlist</p>
           ) : (
             <ol className="print-song-list">
-              {setlist.items.map((item) => {
-                const song = getSongById(item.songId);
-                if (!song) return null;
+              {setlist.items
+                .slice()
+                .sort((a, b) => a.position - b.position)
+                .map((item, index) => {
+                  const song = getSongById(item.songId);
+                  if (!song) return null;
 
-                const key = item.keyOverride || song.key || '—';
-                const singer = item.singerOverride || song.singer || '—';
+                  const key = item.keyOverride || song.key || '—';
+                  const singer = item.singerOverride || song.singer || '—';
 
-                return (
-                  <li key={item.id} className="print-song-item">
-                    <span className="print-song-title">{song.title}</span>
-                    <span className="print-song-details">
-                      <span className="print-song-key">{key}</span>
-                      <span className="print-song-singer">{singer}</span>
-                    </span>
-                  </li>
-                );
-              })}
+                  return (
+                    <li key={item.id} className="print-song-item">
+                      <span className="print-song-title">{song.title}</span>
+                      <span className="print-song-details">
+                        <span className="print-song-key">{key}</span>
+                        <span className="print-song-singer">{singer}</span>
+                      </span>
+                    </li>
+                  );
+                })}
             </ol>
           )}
         </div>

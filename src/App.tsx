@@ -13,10 +13,13 @@ function App() {
   const [showNewSetlistForm, setShowNewSetlistForm] = useState(false);
   const [addSongToSetlistCallback, setAddSongToSetlistCallback] = useState<((songId: string) => void) | null>(null);
   const [isSongInSetlistCallback, setIsSongInSetlistCallback] = useState<((songId: string) => boolean) | null>(null);
+  const [currentSetlistSongIds, setCurrentSetlistSongIds] = useState<string[]>([]);
 
   const handleSelectSetlist = (setlist: Setlist) => {
     setSelectedSetlist(setlist);
     setShowNewSetlistForm(false);
+    // Initialize the song IDs array with the setlist's current items
+    setCurrentSetlistSongIds(setlist.items.map(item => item.songId));
   };
 
   const handleLoadEmptySetlist = () => {
@@ -95,6 +98,9 @@ function App() {
                   onRegisterIsSongInSetlist={(callback) => {
                     setIsSongInSetlistCallback(() => callback);
                   }}
+                  onSetlistItemsChange={(itemIds) => {
+                    setCurrentSetlistSongIds(itemIds);
+                  }}
                 />
               ) : (
                 <div className="column-content">
@@ -114,6 +120,7 @@ function App() {
                 selectedSetlist={currentSetlist}
                 onAddToSetlist={addSongToSetlistCallback || undefined}
                 isSongInSetlist={isSongInSetlistCallback || undefined}
+                currentSetlistSongIds={currentSetlistSongIds}
               />
             </div>
           </>

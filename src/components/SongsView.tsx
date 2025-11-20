@@ -8,9 +8,10 @@ interface SongsViewProps {
   selectedSetlist?: Setlist | null;
   onAddToSetlist?: (songId: string) => void;
   isSongInSetlist?: (songId: string) => boolean;
+  currentSetlistSongIds?: string[];
 }
 
-export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist }: SongsViewProps = {}) {
+export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist, currentSetlistSongIds }: SongsViewProps = {}) {
   const { songs, addSong, updateSong, deleteSong } = useApp();
   const [editingSong, setEditingSong] = useState<Song | undefined>();
   const [showModal, setShowModal] = useState(false);
@@ -164,6 +165,7 @@ export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist }: 
         selectedSetlist={selectedSetlist}
         onAddToSetlist={onAddToSetlist}
         isSongInSetlist={isSongInSetlist}
+        currentSetlistSongIds={currentSetlistSongIds}
       />
 
       {showModal && (

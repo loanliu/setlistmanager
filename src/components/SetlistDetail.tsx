@@ -9,9 +9,10 @@ interface SetlistDetailProps {
   onBack: () => void;
   onRegisterAddSong?: (callback: (songId: string) => void) => void;
   onRegisterIsSongInSetlist?: (callback: (songId: string) => boolean) => void;
+  onSetlistItemsChange?: (itemIds: string[]) => void;
 }
 
-export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIsSongInSetlist }: SetlistDetailProps) {
+export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIsSongInSetlist, onSetlistItemsChange }: SetlistDetailProps) {
   const { songs, setlists, updateSetlist, deleteSetlist, reorderSetlistItems } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
@@ -26,15 +27,19 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     localItemsRef.current = localItems;
   }, [localItems]);
 
-  // Memoize the check function to avoid recreating it on every render
+  // Memoize the check function, but recreate it when localItems changes
+  // This ensures the Add button visibility updates when songs are added/removed locally
   const checkIsSongInSetlist = useCallback((songId: string) => {
     // Check both saved items and localItems (unsaved changes)
+    // Always read from ref to get the latest localItems state
+    const currentLocalItems = localItemsRef.current;
     const inSavedItems = setlist.items.some((item) => item.songId === songId);
-    const inLocalItems = localItemsRef.current.some((item) => item.songId === songId);
+    const inLocalItems = currentLocalItems.some((item) => item.songId === songId);
     return inSavedItems || inLocalItems;
-  }, [setlist.items]);
+  }, [setlist.items, localItems.length]);
 
-  // Register the callbacks only once when component mounts or when setlist changes
+  // Register the callbacks when component mounts, setlist changes, or localItems changes
+  // This ensures the Add button visibility updates when songs are added/removed locally
   useEffect(() => {
     if (onRegisterAddSong) {
       onRegisterAddSong(handleAddSong);
@@ -42,7 +47,11 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     if (onRegisterIsSongInSetlist) {
       onRegisterIsSongInSetlist(checkIsSongInSetlist);
     }
-  }, [onRegisterAddSong, onRegisterIsSongInSetlist, checkIsSongInSetlist]);
+    // Notify parent of current item IDs so SongsView can re-render
+    if (onSetlistItemsChange) {
+      onSetlistItemsChange(localItems.map(item => item.songId));
+    }
+  }, [onRegisterAddSong, onRegisterIsSongInSetlist, checkIsSongInSetlist, localItems]);
 
   const getSongById = (songId: string): Song | undefined => {
     return songs.find((s) => s.id === songId);
@@ -110,18 +119,21 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     setSongSearchQuery('');
   }, [setlists]);
 
-  const handleRemoveSong = (itemId: string) => {
-    // Remove from local items immediately (no API call)
-    const filtered = localItems.filter((item) => item.id !== itemId);
-    // Recalculate positions
+  const handleRemoveSong = useCallback((itemId: string) => {
+    // Remove from local items immediately (no API call) - use ref to get latest
+    const currentItems = localItemsRef.current;
+    const filtered = currentItems.filter((item) => item.id !== itemId);
+    // Recalculate positions sequentially (0, 1, 2, ...)
     const updatedItems = filtered.map((item, index) => ({ ...item, position: index }));
     setLocalItems(updatedItems);
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
   // Update local items when setlist changes (e.g., after adding/removing items)
   useEffect(() => {
-    setLocalItems(setlist.items);
+    // Sort items by position to ensure correct order
+    const sortedItems = [...setlist.items].sort((a, b) => a.position - b.position);
+    setLocalItems(sortedItems);
     setHasUnsavedChanges(false);
   }, [setlist.items]);
 
@@ -179,7 +191,9 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   };
 
   const handleCancelReorder = () => {
-    setLocalItems(setlist.items);
+    // Sort items by position to ensure correct order
+    const sortedItems = [...setlist.items].sort((a, b) => a.position - b.position);
+    setLocalItems(sortedItems);
     setHasUnsavedChanges(false);
   };
 
@@ -321,7 +335,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
           <p className="empty-state">No songs in this setlist yet. Add some below!</p>
         ) : (
           <div className="setlist-items">
-            {localItems.map((item, index) => {
+            {[...localItems].sort((a, b) => a.position - b.position).map((item, index) => {
               const song = getSongById(item.songId);
               if (!song) return null;
               return (
@@ -417,7 +431,10 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
         <div className="modal-overlay" onClick={() => setShowPrintView(false)}>
           <div className="modal-content print-modal" onClick={(e) => e.stopPropagation()}>
             <SetlistPrintView
-              setlist={setlist}
+              setlist={{
+                ...setlist,
+                items: localItems.slice().sort((a, b) => a.position - b.position)
+              }}
               songs={songs}
               onClose={() => setShowPrintView(false)}
               onCopy={handleCopyAsText}
