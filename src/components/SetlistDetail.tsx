@@ -428,8 +428,31 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       </div>
 
       {showPrintView && (
-        <div className="modal-overlay" onClick={() => setShowPrintView(false)}>
-          <div className="modal-content print-modal" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className="modal-overlay" 
+          onClick={() => setShowPrintView(false)}
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+        >
+          <div 
+            className="modal-content print-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              display: 'block',
+              position: 'relative',
+              zIndex: 1001
+            }}
+          >
             <SetlistPrintView
               setlist={{
                 ...setlist,
