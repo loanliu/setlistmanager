@@ -3,14 +3,16 @@ import { SongsView } from './components/SongsView';
 import { SetlistList } from './components/SetlistList';
 import { SetlistDetail } from './components/SetlistDetail';
 import { SetlistForm } from './components/SetlistForm';
+import { DuplicateSetlistModal } from './components/DuplicateSetlistModal';
 import { useApp } from './state/AppContext';
 import type { Setlist } from './types';
 import './App.css';
 
 function App() {
-  const { isLoading, error, clearError, setlists, addSetlist, deleteSetlist } = useApp();
+  const { isLoading, error, clearError, setlists, addSetlist, deleteSetlist, duplicateSetlistItems } = useApp();
   const [selectedSetlist, setSelectedSetlist] = useState<Setlist | null>(null);
   const [showNewSetlistForm, setShowNewSetlistForm] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [addSongToSetlistCallback, setAddSongToSetlistCallback] = useState<((songId: string) => void) | null>(null);
   const [isSongInSetlistCallback, setIsSongInSetlistCallback] = useState<((songId: string) => boolean) | null>(null);
   const [currentSetlistSongIds, setCurrentSetlistSongIds] = useState<string[]>([]);
@@ -65,9 +67,21 @@ function App() {
               <div className="column-header">
                 <h2>Previous setlists</h2>
               </div>
-              <button className="btn-primary btn-load-empty" onClick={handleLoadEmptySetlist}>
-                Load empty setlist
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                <button className="btn-primary btn-load-empty" onClick={handleLoadEmptySetlist}>
+                  Load empty setlist
+                </button>
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => {
+                    console.log('Duplicate button clicked, setting showDuplicateModal to true');
+                    setShowDuplicateModal(true);
+                  }}
+                  type="button"
+                >
+                  Duplicate Setlist Items
+                </button>
+              </div>
               <SetlistList
                 setlists={setlists}
                 onSelect={handleSelectSetlist}
@@ -126,6 +140,21 @@ function App() {
           </>
         )}
       </main>
+
+      {showDuplicateModal && (
+        <DuplicateSetlistModal
+          setlists={setlists}
+          onClose={() => {
+            console.log('Closing duplicate modal');
+            setShowDuplicateModal(false);
+          }}
+          onDuplicate={async (fromId, toId) => {
+            console.log('Duplicating items from', fromId, 'to', toId);
+            await duplicateSetlistItems(fromId, toId);
+            setShowDuplicateModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

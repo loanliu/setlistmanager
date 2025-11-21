@@ -18,6 +18,7 @@ interface AppContextType {
   removeItemFromSetlist: (setlistId: string, itemId: string) => Promise<void>;
   updateSetlistItem: (setlistId: string, itemId: string, updates: Partial<SetlistItem>) => Promise<void>;
   reorderSetlistItems: (setlistId: string, items: SetlistItem[]) => Promise<void>;
+  duplicateSetlistItems: (fromSetlistId: string, toSetlistId: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -385,6 +386,65 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const duplicateSetlistItems = async (fromSetlistId: string, toSetlistId: string) => {
+    try {
+      setError(null);
+      
+      const fromSetlist = setlists.find((s) => s.id === fromSetlistId);
+      const toSetlist = setlists.find((s) => s.id === toSetlistId);
+      
+      if (!fromSetlist) throw new Error('Source setlist not found');
+      if (!toSetlist) throw new Error('Destination setlist not found');
+      if (fromSetlist.items.length === 0) throw new Error('Source setlist has no items to duplicate');
+      
+      // Fetch all setlists to find the max item ID across all items
+      const currentSetlists = await n8nClient.fetchSetlists();
+      let maxItemId = 0;
+      currentSetlists.forEach((sl) => {
+        sl.items.forEach((item) => {
+          const itemId = parseInt(item.id, 10);
+          if (!isNaN(itemId) && itemId > maxItemId) {
+            maxItemId = itemId;
+          }
+        });
+      });
+      
+      // Get existing items from "To" setlist
+      const existingItems = toSetlist.items;
+      const maxPosition = existingItems.length > 0
+        ? Math.max(...existingItems.map((item) => item.position))
+        : -1;
+      
+      // Create new items from "From" setlist with new IDs and updated setlistId
+      const newItems: SetlistItem[] = fromSetlist.items.map((item, index) => {
+        const newItemId = String(maxItemId + 1 + index);
+        return {
+          id: newItemId,
+          songId: item.songId,
+          position: maxPosition + 1 + index,
+          keyOverride: item.keyOverride,
+          singerOverride: item.singerOverride,
+          notes: item.notes,
+        };
+      });
+      
+      // Combine existing items with new items
+      const allItems = [...existingItems, ...newItems];
+      
+      // Send all items to n8n with mode "sync_items"
+      await n8nClient.syncSetlistItems(toSetlistId, allItems);
+      
+      // Refetch setlists to ensure UI is in sync with n8n
+      console.log('Refetching setlists after duplicating items...');
+      const refreshedSetlists = await n8nClient.fetchSetlists();
+      setSetlists(refreshedSetlists);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to duplicate setlist items';
+      setError(errorMessage);
+      throw err;
+    }
+  };
+
   const clearError = () => {
     setError(null);
   };
@@ -406,6 +466,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeItemFromSetlist,
         updateSetlistItem,
         reorderSetlistItems,
+        duplicateSetlistItems,
         clearError,
       }}
     >

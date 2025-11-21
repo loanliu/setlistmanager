@@ -325,8 +325,13 @@
   resize: vertical;
 }
 
-.form-actions {
+.form-actions,
+.modal-actions {
   display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 2rem;
+}
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 2rem;
@@ -351,10 +356,17 @@
   background: #ffffff;
   border-radius: 8px;
   border: 1px solid #ddd;
-  max-width: 600px;
-  width: 100%;
+  max-width: 700px;
+  width: 90%;
+  min-width: 550px;
   max-height: 90vh;
   overflow-y: auto;
+  position: relative;
+  z-index: 1001;
+}
+
+.modal-content form {
+  padding: 2rem;
 }
 
 .modal-header {
