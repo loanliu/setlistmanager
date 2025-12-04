@@ -33,12 +33,17 @@ export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist, cu
     try {
       if (editingSong) {
         await updateSong(editingSong.id, songData);
+        console.log('Song updated successfully, closing modal');
       } else {
         await addSong(songData);
+        console.log('Song added successfully, closing modal');
       }
       // Close modal after successful save
-      setShowModal(false);
-      setEditingSong(undefined);
+      // Use setTimeout to ensure state updates happen after the async operation completes
+      setTimeout(() => {
+        setShowModal(false);
+        setEditingSong(undefined);
+      }, 0);
     } catch (error) {
       // Error is already handled in context, just keep modal open
       console.error('Failed to save song:', error);
