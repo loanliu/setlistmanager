@@ -93,9 +93,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         notes: songData.notes,
       };
       
-      await n8nClient.saveSong(newSong, 'create');
+      const savedSong = await n8nClient.saveSong(newSong, 'create');
+      console.log('Song saved, returned song:', savedSong);
+      
+      // Small delay to ensure database has fully processed (even though saveSong already waited)
+      // This is especially important for async workflows
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Refetch all songs from n8n to get the latest data
+      // This ensures we have the most up-to-date list with correct IDs from the database
       console.log('Refetching songs after add...');
       const refreshedSongs = await n8nClient.fetchSongs();
       setSongs(refreshedSongs);
@@ -233,15 +239,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
         items: existingSetlist.items,
       };
       
-      const updatedSetlist = await n8nClient.saveSetlist(setlistToSave, 'update', false);
+      await n8nClient.saveSetlist(setlistToSave, 'update', false);
       
-      // Merge the response with existing items to preserve them
-      const finalSetlist = {
-        ...updatedSetlist,
-        items: existingSetlist.items, // Keep existing items since we're only updating top-level
-      };
+      // Wait a moment for async workflows to complete (if it's an async workflow)
+      // This ensures the database is updated before we refetch
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      setSetlists((prev) => prev.map((setlist) => (setlist.id === id ? finalSetlist : setlist)));
+      // Refetch all setlists to get the latest data with correct setlistId
+      console.log('Refetching setlists after update...');
+      const refreshedSetlists = await n8nClient.fetchSetlists();
+      
+      // Find the updated setlist by ID or name (in case the ID changed)
+      const updatedSetlist = refreshedSetlists.find((s) => s.id === id || s.name === existingSetlist.name);
+      if (updatedSetlist) {
+        // Merge with existing items to preserve them
+        const finalSetlist = {
+          ...updatedSetlist,
+          items: existingSetlist.items, // Keep existing items since we're only updating top-level
+        };
+        
+        // Update the setlists state - use the updated setlist's ID to match correctly
+        setSetlists(refreshedSetlists.map((s) => 
+          (s.id === updatedSetlist.id) ? finalSetlist : s
+        ));
+      } else {
+        // If not found, just update all setlists (they should be refreshed)
+        setSetlists(refreshedSetlists);
+        console.warn(`Updated setlist not found after refetch. Name was: ${existingSetlist.name}`);
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update setlist';
       setError(errorMessage);
@@ -268,11 +293,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addItemToSetlist = async (setlistId: string, songId: string) => {
     try {
       setError(null);
-      const setlist = setlists.find((s) => s.id === setlistId);
-      if (!setlist) throw new Error('Setlist not found');
       
-      // Fetch all setlists to find the max item ID across all items
+      // Refetch setlists first to ensure we have the latest data with correct setlistId
+      // This is important because setlist.id might be the database row ID (5) 
+      // but we need the actual setlistId (2) that SetlistItems table links to
+      console.log('Refetching setlists before adding item to get correct setlistId...');
       const currentSetlists = await n8nClient.fetchSetlists();
+      
+      // Try to find the setlist by the provided ID, or by name if ID doesn't match
+      let setlist = currentSetlists.find((s) => s.id === setlistId);
+      if (!setlist) {
+        // If not found by ID, try finding by name from the original setlist
+        const originalSetlist = setlists.find((s) => s.id === setlistId);
+        if (originalSetlist) {
+          setlist = currentSetlists.find((s) => s.name === originalSetlist.name);
+        }
+      }
+      if (!setlist) throw new Error('Setlist not found after refetch');
+      
+      // Use the setlistId from the refetched setlist (which should be the correct setlistId, not database row ID)
+      const correctSetlistId = setlist.id;
+      console.log(`Using setlistId: ${correctSetlistId} for setlist: ${setlist.name} when adding item`);
+      
+      // Find the max item ID across all items
       let maxItemId = 0;
       currentSetlists.forEach((sl) => {
         sl.items.forEach((item) => {
@@ -293,13 +336,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         position: maxPosition + 1,
       };
       
-      // Send only the new item to n8n with mode "add_item"
-      await n8nClient.addItemToSetlist(setlistId, newItem);
+      // Send only the new item to n8n with mode "add_item", using the correct setlistId
+      await n8nClient.addItemToSetlist(correctSetlistId, newItem);
       
       // Update local state with the new item immediately
       const updatedItems = [...setlist.items, newItem].sort((a, b) => a.position - b.position);
       setSetlists((prev) => prev.map((s) => 
-        s.id === setlistId 
+        (s.id === correctSetlistId || s.id === setlistId) 
           ? { ...s, items: updatedItems }
           : s
       ));
@@ -369,19 +412,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const reorderSetlistItems = async (setlistId: string, items: SetlistItem[]) => {
     try {
       setError(null);
-      const setlist = setlists.find((s) => s.id === setlistId);
-      if (!setlist) throw new Error('Setlist not found');
+      
+      // Refetch setlists first to ensure we have the latest data with correct setlistId
+      // This is important because setlist.id might have been the database row ID (5) 
+      // but we need the actual setlistId (2) that SetlistItems table links to
+      console.log('Refetching setlists before sync to get correct setlistId...');
+      const currentSetlists = await n8nClient.fetchSetlists();
+      
+      // Try to find the setlist by the provided ID, or by name if ID doesn't match
+      let setlist = currentSetlists.find((s) => s.id === setlistId);
+      if (!setlist) {
+        // If not found by ID, try finding by name from the original setlist
+        const originalSetlist = setlists.find((s) => s.id === setlistId);
+        if (originalSetlist) {
+          setlist = currentSetlists.find((s) => s.name === originalSetlist.name);
+        }
+      }
+      if (!setlist) throw new Error('Setlist not found after refetch');
+      
+      // Use the setlistId from the refetched setlist (which should be the correct setlistId, not database row ID)
+      const correctSetlistId = setlist.id;
+      console.log(`Using setlistId: ${correctSetlistId} for setlist: ${setlist.name}`);
       
       // Send all items to n8n to replace the entire setlist
-      await n8nClient.syncSetlistItems(setlistId, items);
+      await n8nClient.syncSetlistItems(correctSetlistId, items);
+      
+      // Wait a moment for async workflows to complete (if it's an async workflow)
+      // This ensures the database is updated before we refetch
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refetch setlists to ensure UI is in sync with n8n
       console.log('Refetching setlists after syncing items...');
       const refreshedSetlists = await n8nClient.fetchSetlists();
+      
+      // Verify the setlist still exists after refetch
+      const updatedSetlist = refreshedSetlists.find((s) => s.id === correctSetlistId);
+      if (!updatedSetlist) {
+        console.warn(`Setlist ${correctSetlistId} not found after refetch. This might indicate a problem.`);
+      }
+      
       setSetlists(refreshedSetlists);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sync setlist items';
       setError(errorMessage);
+      console.error('Error in reorderSetlistItems:', err);
       throw err;
     }
   };

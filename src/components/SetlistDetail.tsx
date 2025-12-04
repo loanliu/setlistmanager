@@ -27,6 +27,15 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     localItemsRef.current = localItems;
   }, [localItems]);
 
+  // Sync localItems when setlist prop changes (after refetch from save)
+  // Only update if there are no unsaved changes, to avoid overwriting user edits
+  useEffect(() => {
+    if (!hasUnsavedChanges) {
+      const sortedItems = [...setlist.items].sort((a, b) => a.position - b.position);
+      setLocalItems(sortedItems);
+    }
+  }, [setlist.items, hasUnsavedChanges]);
+
   // Memoize the check function, but recreate it when localItems changes
   // This ensures the Add button visibility updates when songs are added/removed locally
   const checkIsSongInSetlist = useCallback((songId: string) => {
@@ -181,12 +190,32 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
 
   const handleSaveChanges = async () => {
     try {
+      // Get the latest setlist from context to ensure we have the correct setlistId
+      // The setlist.id should now contain setlistId (not database row ID) after refetch
+      const latestSetlist = setlists.find((s) => s.id === setlist.id || s.name === setlist.name);
+      const setlistIdToUse = latestSetlist?.id || setlist.id;
+      
+      console.log('Saving setlist items - using setlistId:', setlistIdToUse, 'for setlist:', setlist.name);
+      console.log('Current setlist object:', setlist);
+      console.log('Latest setlist from context:', latestSetlist);
+      
       // Send all items to n8n to replace the entire setlist
-      await reorderSetlistItems(setlist.id, localItems);
+      await reorderSetlistItems(setlistIdToUse, localItems);
       setHasUnsavedChanges(false);
-      // The context will refetch setlists, which will update our localItems via useEffect
+      
+      // Wait a moment for the context to refetch and update the setlist
+      // Then sync localItems with the updated setlist from context
+      setTimeout(() => {
+        const updatedSetlist = setlists.find((s) => s.id === setlistIdToUse);
+        if (updatedSetlist) {
+          const sortedItems = [...updatedSetlist.items].sort((a, b) => a.position - b.position);
+          setLocalItems(sortedItems);
+        }
+      }, 100);
     } catch (error) {
       console.error('Failed to save changes:', error);
+      // Show error to user instead of blank screen
+      alert(`Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

@@ -259,9 +259,13 @@ export async function fetchSongs(): Promise<Song[]> {
     
     // Map n8n response format to our Song type
     const mappedSongs = songs.map((item: any, index: number) => {
-      // Handle case where item might be nested or have different structure
+      // Handle database response format where 'songid' is the song identifier
+      // and 'id' might be the database row ID
+      // Prefer 'songid' if it exists, otherwise use 'id' or 'songId'
+      const songId = item.songid !== undefined ? item.songid : (item.id || item.songId);
+      
       const song = {
-        id: String(item.id || item.songId || `temp-${index}-${Date.now()}`),
+        id: String(songId || `temp-${index}-${Date.now()}`),
         title: item.title || '',
         artist: item.artist || undefined,
         singer: item.singer || undefined,
@@ -320,28 +324,163 @@ export async function saveSong(song: SongInput, explicitMode?: 'create' | 'updat
     });
     
     console.log('Full API response:', data);
+    console.log('Response type:', typeof data);
+    console.log('Is array?', Array.isArray(data));
     
     // Handle different response formats from n8n
-    let savedSong: Song;
-    if (data.song) {
-      savedSong = data.song;
-    } else if (data.id || data.title) {
-      // Response might be the song object directly
-      savedSong = data as Song;
-    } else {
-      console.error('Unexpected response format:', data);
-      throw new Error('Invalid response format from server');
+    let songData: any = null;
+    
+    // Handle null/undefined
+    if (!data) {
+      console.error('Response is null or undefined');
+      throw new Error('Empty response from server');
     }
+    
+    // Check if n8n returned a "Workflow was started" message (async workflow)
+    // In this case, we need to refetch the song to get the updated data
+    if (data && typeof data === 'object' && data.message && 
+        (data.message === 'Workflow was started' || data.message.includes('started'))) {
+      console.log('Detected async workflow response. Refetching songs to get updated data...');
+      
+      // For async workflows, wait a bit and retry fetching the song
+      // We'll try a few times since the database update might take a moment
+      // For creates, we need a bit more time since it's a new record
+      const maxRetries = mode === 'create' ? 5 : 3;
+      const retryDelay = mode === 'create' ? 1000 : 800; // milliseconds - longer for creates
+      let updatedSong: Song | undefined;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`Refetch attempt ${attempt}/${maxRetries}...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        
+        const allSongs = await fetchSongs();
+        
+        // Find the updated song by ID (for updates) or title (for creates)
+        const songIdToFind = song.id || songPayload.id;
+        
+        if (mode === 'update' && songIdToFind) {
+          // For updates, prioritize matching by ID
+          updatedSong = allSongs.find(s => s.id === String(songIdToFind));
+        }
+        
+        // For creates or if update didn't find by ID, search by title + artist
+        // This is important for creates since the database might generate a different ID
+        if (!updatedSong && song.title) {
+          updatedSong = allSongs.find(s => {
+            // Must match title exactly
+            if (s.title !== song.title) {
+              return false;
+            }
+            
+            // For artist matching: 
+            // - If both have artist, they must match
+            // - If both missing artist, that's fine (match by title only)
+            // - If one has artist and one doesn't, don't match (to avoid false positives)
+            const songHasArtist = song.artist && song.artist.trim() !== '';
+            const sHasArtist = s.artist && s.artist.trim() !== '';
+            
+            if (songHasArtist && sHasArtist) {
+              return s.artist === song.artist; // Both have artist, must match
+            } else if (!songHasArtist && !sHasArtist) {
+              return true; // Both missing artist, match by title
+            } else {
+              return false; // One has artist, one doesn't - don't match
+            }
+          });
+        }
+        
+        if (updatedSong) {
+          console.log(`Found ${mode} song after refetch (attempt ${attempt}):`, updatedSong);
+          // Return the found song directly
+          return updatedSong;
+        }
+        
+        console.log(`Song not found yet, will retry...`);
+      }
+      
+      // If we still can't find it after retries, construct from input data
+      console.warn('Could not find updated song after retries. Using input data as fallback.');
+      const fallbackSong: Song = {
+        id: String(song.id || songPayload.id || ''),
+        title: song.title || '',
+        artist: song.artist,
+        singer: song.singer,
+        key: song.key,
+        tempoBmp: song.tempoBmp,
+        notes: song.notes,
+      };
+      return fallbackSong;
+    }
+    
+    // Check if response is an array (database response format)
+    // This is the most common format: [{ songid: 49, ... }]
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        throw new Error('Empty response array from server');
+      }
+      // Take the first element from the array
+      songData = data[0];
+      console.log('Extracted song from array response:', songData);
+    }
+    // Check if response is wrapped in an object with array property
+    // Some n8n workflows return { data: [...] } or { items: [...] }
+    else if (data && typeof data === 'object') {
+      // Check for common wrapper keys
+      if (Array.isArray(data.data)) {
+        songData = data.data[0];
+        console.log('Extracted song from data array:', songData);
+      }
+      else if (Array.isArray(data.items)) {
+        songData = data.items[0];
+        console.log('Extracted song from items array:', songData);
+      }
+      else if (Array.isArray(data.result)) {
+        songData = data.result[0];
+        console.log('Extracted song from result array:', songData);
+      }
+      // Check if response has a nested 'song' property (old format)
+      else if (data.song) {
+        songData = data.song;
+        console.log('Extracted song from nested response:', songData);
+      }
+      // Check if response is the song object directly (has required song fields)
+      else if (data.id || data.songid || data.title) {
+        songData = data;
+        console.log('Using response as song object directly:', songData);
+      }
+      else {
+        console.error('Unexpected response format. Data:', data);
+        console.error('Data type:', typeof data);
+        console.error('Data keys:', Object.keys(data));
+        console.error('Full data stringified:', JSON.stringify(data, null, 2));
+        throw new Error(`Invalid response format from server. Received: ${JSON.stringify(data)}`);
+      }
+    }
+    else {
+      console.error('Response is not an object or array. Type:', typeof data);
+      throw new Error(`Invalid response format from server. Expected object/array, got ${typeof data}`);
+    }
+    
+    // Final validation - ensure we have song data
+    if (!songData || (typeof songData !== 'object')) {
+      console.error('Failed to extract song data. songData:', songData);
+      throw new Error('Could not extract song data from response');
+    }
+    
+    // Map database fields to Song type
+    // Handle both 'id' (database row ID) and 'songid' (song identifier)
+    // Prefer 'songid' if it exists, otherwise use 'id'
+    const songId = songData.songid !== undefined ? songData.songid : songData.id;
     
     // Ensure all fields are present
     const completeSong: Song = {
-      id: String(savedSong.id || song.id || crypto.randomUUID()),
-      title: savedSong.title || song.title || '',
-      artist: savedSong.artist || song.artist,
-      singer: savedSong.singer || song.singer,
-      key: savedSong.key || song.key,
-      tempoBmp: savedSong.tempoBmp || song.tempoBmp,
-      notes: savedSong.notes || song.notes,
+      id: String(songId || song.id || crypto.randomUUID()),
+      title: songData.title || song.title || '',
+      artist: songData.artist || song.artist,
+      singer: songData.singer || song.singer,
+      key: songData.key || song.key,
+      tempoBmp: songData.tempoBmp || song.tempoBmp,
+      notes: songData.notes || song.notes,
     };
     
     console.log(`Song ${mode} successful:`, completeSong);
@@ -424,6 +563,11 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
     else if (data.setlists && Array.isArray(data.setlists)) {
       setlists = data.setlists;
       console.log(`Found ${setlists.length} setlists in data.setlists`);
+      // Debug: Log the first setlist to see its structure
+      if (setlists.length > 0) {
+        console.log('Sample setlist from data.setlists:', JSON.stringify(setlists[0], null, 2));
+        console.log('First setlist keys:', Object.keys(setlists[0]));
+      }
     }
     // If response is a single object
     else if (data && typeof data === 'object') {
@@ -461,8 +605,39 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
         }
       }
       
+      // The database has both 'id' (database row ID) and 'setlistId' (actual setlist identifier)
+      // SetlistItems table links to 'setlistId', not 'id'
+      // We need to use setlistId for all operations, but we'll store it in the 'id' field
+      // Check for setlistId in various possible field names using 'in' operator to catch all cases
+      let setlistIdValue: any;
+      if ('setlistId' in item) {
+        setlistIdValue = item.setlistId;
+      } else if ('setlist_id' in item) {
+        setlistIdValue = item.setlist_id;
+      } else if ('setlistID' in item) {
+        setlistIdValue = item.setlistID;
+      } else if ('SetlistId' in item) {
+        setlistIdValue = item.SetlistId;
+      } else {
+        // Fall back to id if setlistId is not present
+        setlistIdValue = item.id;
+      }
+      
+      // Debug: Log all keys to see what fields are actually available
+      if (setlistIdValue === item.id && !('setlistId' in item)) {
+        console.log(`⚠️ setlistId not found in item. Available keys:`, Object.keys(item));
+        console.log(`Raw item:`, JSON.stringify(item, null, 2));
+        console.log(`Checking 'setlistId' in item:`, 'setlistId' in item);
+        console.log(`item.setlistId value:`, item.setlistId);
+      }
+      
+      const setlistIdDisplay = 'setlistId' in item ? item.setlistId : 
+                               ('setlist_id' in item ? item.setlist_id : 
+                               ('setlistID' in item ? item.setlistID : 'not found'));
+      console.log(`Mapping setlist: raw item has id=${item.id}, setlistId=${setlistIdDisplay}, using setlistIdValue=${setlistIdValue}`);
+      
       return {
-        id: String(item.id || `temp-${index}-${Date.now()}`),
+        id: String(setlistIdValue || `temp-${index}-${Date.now()}`),
         name: item.name || '',
         venue: item.venue || undefined,
         city: item.city || undefined,
@@ -520,7 +695,8 @@ export async function addItemToSetlist(
     
     const requestBody = {
       setlist: {
-        id: setlistId,
+        setlistId: setlistId,  // Send setlistId for SetlistItems table linking
+        id: setlistId,          // Keep id for backward compatibility if needed
       },
       item: {
         id: item.id,
@@ -566,7 +742,8 @@ export async function syncSetlistItems(
     
     const requestBody = {
       setlist: {
-        id: setlistId,
+        setlistId: setlistId,  // Send setlistId for SetlistItems table linking
+        id: setlistId,          // Keep id for backward compatibility if needed
       },
       items: itemsWithSequentialPositions.map((item) => ({
         id: item.id, // All items now have IDs (generated on frontend)
@@ -587,6 +764,14 @@ export async function syncSetlistItems(
       method: 'POST',
       body: JSON.stringify(requestBody),
     });
+    
+    // Check if n8n returned a "Workflow was started" message (async workflow)
+    if (response && typeof response === 'object' && response.message && 
+        (response.message === 'Workflow was started' || response.message.includes('started'))) {
+      console.log('Async workflow detected for setlist items sync. Database should update shortly.');
+      // For async workflows, we don't get immediate confirmation, but the database should update
+      // The calling code will refetch setlists to get the updated data
+    }
     
     console.log('Items synced successfully, response:', response);
   } catch (error) {
@@ -642,6 +827,24 @@ export async function saveSetlist(
     
     console.log('Full API response:', data);
     
+    // Check if n8n returned a "Workflow was started" message (async workflow)
+    if (data && typeof data === 'object' && data.message && 
+        (data.message === 'Workflow was started' || data.message.includes('started'))) {
+      console.log('Async workflow detected for setlist save. Database should update shortly.');
+      // For async workflows, we don't get immediate confirmation, but the database should update
+      // The calling code will refetch setlists to get the updated data
+      // Return a minimal setlist object with the ID we sent
+      return {
+        id: payload.id || '',
+        name: payload.name || '',
+        venue: payload.venue,
+        city: payload.city,
+        date: payload.date,
+        notes: payload.notes,
+        items: payload.items || [],
+      };
+    }
+    
     // Handle different response formats from n8n
     let savedSetlist: SetlistWithItems;
     if (data.setlist) {
@@ -681,7 +884,8 @@ export async function deleteSetlist(id: string): Promise<void> {
     
     const requestBody = {
       setlist: {
-        id: id,
+        setlistId: id,  // Send setlistId instead of id, since SetlistItems table links to setlistId
+        id: id,         // Keep id as well for backward compatibility if needed
       },
       mode: 'delete_setlist'
     };
