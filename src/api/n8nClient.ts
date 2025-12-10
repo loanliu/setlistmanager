@@ -605,39 +605,15 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
         }
       }
       
-      // The database has both 'id' (database row ID) and 'setlistId' (actual setlist identifier)
-      // SetlistItems table links to 'setlistId', not 'id'
-      // We need to use setlistId for all operations, but we'll store it in the 'id' field
-      // Check for setlistId in various possible field names using 'in' operator to catch all cases
-      let setlistIdValue: any;
-      if ('setlistId' in item) {
-        setlistIdValue = item.setlistId;
-      } else if ('setlist_id' in item) {
-        setlistIdValue = item.setlist_id;
-      } else if ('setlistID' in item) {
-        setlistIdValue = item.setlistID;
-      } else if ('SetlistId' in item) {
-        setlistIdValue = item.SetlistId;
-      } else {
-        // Fall back to id if setlistId is not present
-        setlistIdValue = item.id;
-      }
+      // Use the database row ID as the setlist identifier
+      // This is the actual primary key (id) from the Setlist table
+      // The SetlistItems table uses setlistId as a foreign key that references Setlist.id
+      const setId = item.id;
       
-      // Debug: Log all keys to see what fields are actually available
-      if (setlistIdValue === item.id && !('setlistId' in item)) {
-        console.log(`⚠️ setlistId not found in item. Available keys:`, Object.keys(item));
-        console.log(`Raw item:`, JSON.stringify(item, null, 2));
-        console.log(`Checking 'setlistId' in item:`, 'setlistId' in item);
-        console.log(`item.setlistId value:`, item.setlistId);
-      }
-      
-      const setlistIdDisplay = 'setlistId' in item ? item.setlistId : 
-                               ('setlist_id' in item ? item.setlist_id : 
-                               ('setlistID' in item ? item.setlistID : 'not found'));
-      console.log(`Mapping setlist: raw item has id=${item.id}, setlistId=${setlistIdDisplay}, using setlistIdValue=${setlistIdValue}`);
+      console.log(`Mapping setlist: using database id=${setId} for setlist "${item.name || 'unnamed'}"`);
       
       return {
-        id: String(setlistIdValue || `temp-${index}-${Date.now()}`),
+        id: String(setId || `temp-${index}-${Date.now()}`),
         name: item.name || '',
         venue: item.venue || undefined,
         city: item.city || undefined,
@@ -656,10 +632,20 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
             // Try multiple possible field names for songId
             const songId = it.songId || it.song_id || it.songID || it.SongId || '';
             
+            // Parse position - try multiple field names
+            let position = 0;
+            if (typeof it.position === 'number') {
+              position = it.position;
+            } else if (it.position !== undefined && it.position !== null) {
+              position = parseInt(String(it.position), 10) || 0;
+            } else if (it.Position !== undefined) {
+              position = typeof it.Position === 'number' ? it.Position : parseInt(String(it.Position), 10) || 0;
+            }
+            
             return {
               id: String(it.id || crypto.randomUUID()),
               songId: String(songId),
-              position: typeof it.position === 'number' ? it.position : parseInt(it.position, 10) || 0,
+              position: position,
               keyOverride: it.keyOverride && it.keyOverride !== '' ? it.keyOverride : (it.keyOverride === null ? undefined : it.keyOverride),
               singerOverride: it.singerOverride && it.singerOverride !== '' ? it.singerOverride : (it.singerOverride === null ? undefined : it.singerOverride),
               notes: it.notes && it.notes !== '' ? it.notes : undefined,
@@ -668,15 +654,42 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
       };
     });
     
-    // Generate proper UUIDs for any temp IDs
+    // Generate proper UUIDs for any temp IDs and sort items by position
     const finalSetlists = mappedSetlists.map((setlist) => {
-      if (setlist.id.startsWith('temp-')) {
-        return { ...setlist, id: crypto.randomUUID() };
+      const baseSetlist = setlist.id.startsWith('temp-') 
+        ? { ...setlist, id: crypto.randomUUID() }
+        : setlist;
+      
+      // Log items before sorting for debugging
+      if (baseSetlist.items.length > 0) {
+        console.log(`Setlist "${baseSetlist.name}" items BEFORE sorting:`, baseSetlist.items.map((it, idx) => ({
+          index: idx,
+          position: it.position,
+          songId: it.songId,
+          id: it.id
+        })));
       }
-      return setlist;
+      
+      // Always sort items by position to ensure correct order
+      const sortedItems = [...baseSetlist.items].sort((a, b) => a.position - b.position);
+      
+      // Log items after sorting for debugging
+      if (sortedItems.length > 0) {
+        console.log(`Setlist "${baseSetlist.name}" items AFTER sorting:`, sortedItems.map((it, idx) => ({
+          index: idx,
+          position: it.position,
+          songId: it.songId,
+          id: it.id
+        })));
+      }
+      
+      return {
+        ...baseSetlist,
+        items: sortedItems
+      };
     });
     
-    console.log(`Successfully mapped ${finalSetlists.length} setlists`);
+    console.log(`Successfully mapped ${finalSetlists.length} setlists with sorted items`);
     return finalSetlists;
   } catch (error) {
     console.error('Failed to fetch setlists:', error);
@@ -695,8 +708,8 @@ export async function addItemToSetlist(
     
     const requestBody = {
       setlist: {
-        setlistId: setlistId,  // Send setlistId for SetlistItems table linking
-        id: setlistId,          // Keep id for backward compatibility if needed
+        setlistId: setlistId,  // SetlistItems table uses setlistId as foreign key to Setlist.id
+        id: setlistId,          // Also send as id for backward compatibility
       },
       item: {
         id: item.id,
@@ -734,16 +747,25 @@ export async function syncSetlistItems(
       throw new Error('Setlist item save URL is not configured. Please set VITE_N8N_SAVE_SETLIST_ITEM_URL in your .env file');
     }
     
-    // Ensure positions are sequential (0, 1, 2, ...)
+    // Ensure positions are sequential (0, 1, 2, ...) and preserve item order
+    // IMPORTANT: The order of items in the array determines their position
     const itemsWithSequentialPositions = items.map((item, index) => ({
       ...item,
       position: index,
     }));
     
+    // Log what we're sending BEFORE creating request body
+    console.log('Items being sent to n8n (in order):', itemsWithSequentialPositions.map((item, idx) => ({
+      index: idx,
+      position: item.position,
+      id: item.id,
+      songId: item.songId
+    })));
+    
     const requestBody = {
       setlist: {
-        setlistId: setlistId,  // Send setlistId for SetlistItems table linking
-        id: setlistId,          // Keep id for backward compatibility if needed
+        setlistId: setlistId,  // SetlistItems table uses setlistId as foreign key to Setlist.id
+        id: setlistId,          // Also send as id for backward compatibility
       },
       items: itemsWithSequentialPositions.map((item) => ({
         id: item.id, // All items now have IDs (generated on frontend)
@@ -884,8 +906,8 @@ export async function deleteSetlist(id: string): Promise<void> {
     
     const requestBody = {
       setlist: {
-        setlistId: id,  // Send setlistId instead of id, since SetlistItems table links to setlistId
-        id: id,         // Keep id as well for backward compatibility if needed
+        setlistId: id,  // SetlistItems table uses setlistId as foreign key to Setlist.id
+        id: id,         // Also send as id for backward compatibility
       },
       mode: 'delete_setlist'
     };

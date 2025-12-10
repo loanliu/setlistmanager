@@ -14,10 +14,17 @@ interface SetlistDetailProps {
 
 export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIsSongInSetlist, onSetlistItemsChange }: SetlistDetailProps) {
   const { songs, setlists, updateSetlist, deleteSetlist, reorderSetlistItems } = useApp();
+  
+  // Always get the latest setlist from context to ensure we have the most up-to-date data
+  const latestSetlist = setlists.find((s) => s.id === setlist.id) || setlist;
+  
+  // Initialize localItems with sorted items from latestSetlist
+  const initialItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
+  
   const [isEditing, setIsEditing] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
   const [songSearchQuery, setSongSearchQuery] = useState('');
-  const [localItems, setLocalItems] = useState<SetlistItem[]>(setlist.items);
+  const [localItems, setLocalItems] = useState<SetlistItem[]>(initialItems);
   const [draggedItem, setDraggedItem] = useState<SetlistItem | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
@@ -27,14 +34,28 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     localItemsRef.current = localItems;
   }, [localItems]);
 
-  // Sync localItems when setlist prop changes (after refetch from save)
+  // Create a stable key for items to use as dependency
+  const itemsKey = useMemo(() => {
+    const sorted = [...latestSetlist.items].sort((a, b) => a.position - b.position);
+    return sorted.map(item => `${item.id}:${item.songId}:${item.position}`).join(',');
+  }, [latestSetlist.items, latestSetlist.id]);
+  
+  // Sync localItems when setlist from context changes (after refetch from save)
   // Only update if there are no unsaved changes, to avoid overwriting user edits
+  const prevItemsKeyRef = useRef<string>('');
+  
   useEffect(() => {
-    if (!hasUnsavedChanges) {
-      const sortedItems = [...setlist.items].sort((a, b) => a.position - b.position);
+    if (!hasUnsavedChanges && prevItemsKeyRef.current !== itemsKey) {
+      prevItemsKeyRef.current = itemsKey;
+      const sortedItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
+      console.log('SetlistDetail: Syncing localItems from latest setlist. Items:', sortedItems.map(item => ({
+        position: item.position,
+        songId: item.songId,
+        id: item.id
+      })));
       setLocalItems(sortedItems);
     }
-  }, [setlist.items, hasUnsavedChanges]);
+  }, [itemsKey, hasUnsavedChanges, latestSetlist.items]);
 
   // Memoize the check function, but recreate it when localItems changes
   // This ensures the Add button visibility updates when songs are added/removed locally
@@ -42,10 +63,10 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     // Check both saved items and localItems (unsaved changes)
     // Always read from ref to get the latest localItems state
     const currentLocalItems = localItemsRef.current;
-    const inSavedItems = setlist.items.some((item) => item.songId === songId);
+    const inSavedItems = latestSetlist.items.some((item) => item.songId === songId);
     const inLocalItems = currentLocalItems.some((item) => item.songId === songId);
     return inSavedItems || inLocalItems;
-  }, [setlist.items, localItems.length]);
+  }, [latestSetlist.items, localItems.length]);
 
   // Register the callbacks when component mounts, setlist changes, or localItems changes
   // This ensures the Add button visibility updates when songs are added/removed locally
@@ -68,7 +89,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
 
   const handleUpdate = async (updates: Omit<Setlist, 'id' | 'items'>) => {
     try {
-      await updateSetlist(setlist.id, updates);
+      await updateSetlist(latestSetlist.id, updates);
       setIsEditing(false);
     } catch (error) {
       console.error('Failed to update setlist:', error);
@@ -76,9 +97,9 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   };
 
   const handleDelete = async () => {
-    if (confirm(`Delete setlist "${setlist.name}"?`)) {
+    if (confirm(`Delete setlist "${latestSetlist.name}"?`)) {
       try {
-        await deleteSetlist(setlist.id);
+        await deleteSetlist(latestSetlist.id);
         onBack();
       } catch (error) {
         console.error('Failed to delete setlist:', error);
@@ -138,13 +159,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     setHasUnsavedChanges(true);
   }, []);
 
-  // Update local items when setlist changes (e.g., after adding/removing items)
-  useEffect(() => {
-    // Sort items by position to ensure correct order
-    const sortedItems = [...setlist.items].sort((a, b) => a.position - b.position);
-    setLocalItems(sortedItems);
-    setHasUnsavedChanges(false);
-  }, [setlist.items]);
+  // This useEffect is handled by the one above - removed duplicate
 
   const handleDragStart = (e: React.DragEvent, item: SetlistItem) => {
     setDraggedItem(item);
@@ -190,28 +205,30 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
 
   const handleSaveChanges = async () => {
     try {
-      // Get the latest setlist from context to ensure we have the correct setlistId
-      // The setlist.id should now contain setlistId (not database row ID) after refetch
-      const latestSetlist = setlists.find((s) => s.id === setlist.id || s.name === setlist.name);
-      const setlistIdToUse = latestSetlist?.id || setlist.id;
+      // Use the latest setlist from context to ensure we have the correct setlistId
+      const setlistIdToUse = latestSetlist.id;
       
-      console.log('Saving setlist items - using setlistId:', setlistIdToUse, 'for setlist:', setlist.name);
-      console.log('Current setlist object:', setlist);
+      // Ensure localItems are sorted by position before sending
+      const sortedLocalItems = [...localItems].sort((a, b) => a.position - b.position);
+      
+      console.log('Saving setlist items - using setlistId:', setlistIdToUse, 'for setlist:', latestSetlist.name);
+      console.log('Local items being saved (sorted by position):', sortedLocalItems.map((item, idx) => ({
+        index: idx,
+        position: item.position,
+        id: item.id,
+        songId: item.songId
+      })));
       console.log('Latest setlist from context:', latestSetlist);
       
       // Send all items to n8n to replace the entire setlist
-      await reorderSetlistItems(setlistIdToUse, localItems);
+      // Use sorted items to ensure correct order
+      await reorderSetlistItems(setlistIdToUse, sortedLocalItems);
       setHasUnsavedChanges(false);
       
-      // Wait a moment for the context to refetch and update the setlist
-      // Then sync localItems with the updated setlist from context
-      setTimeout(() => {
-        const updatedSetlist = setlists.find((s) => s.id === setlistIdToUse);
-        if (updatedSetlist) {
-          const sortedItems = [...updatedSetlist.items].sort((a, b) => a.position - b.position);
-          setLocalItems(sortedItems);
-        }
-      }, 100);
+      // Don't manually update localItems here - let the useEffect handle it
+      // The context will update setlists, which will trigger the useEffect above
+      // This prevents conflicts and infinite loops
+      console.log('SetlistDetail: Save completed, waiting for context to update...');
     } catch (error) {
       console.error('Failed to save changes:', error);
       // Show error to user instead of blank screen
@@ -221,7 +238,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
 
   const handleCancelReorder = () => {
     // Sort items by position to ensure correct order
-    const sortedItems = [...setlist.items].sort((a, b) => a.position - b.position);
+    const sortedItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
     setLocalItems(sortedItems);
     setHasUnsavedChanges(false);
   };
@@ -285,17 +302,17 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       return songs.find((s) => s.id === songId);
     };
 
-    let text = `${setlist.name}\n`;
-    if (setlist.date) {
-      const date = new Date(setlist.date);
+    let text = `${latestSetlist.name}\n`;
+    if (latestSetlist.date) {
+      const date = new Date(latestSetlist.date);
       text += `${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n`;
     }
-    if (setlist.venue || setlist.city) {
-      text += `${setlist.venue || ''}${setlist.venue && setlist.city ? ' • ' : ''}${setlist.city || ''}\n`;
+    if (latestSetlist.venue || latestSetlist.city) {
+      text += `${latestSetlist.venue || ''}${latestSetlist.venue && latestSetlist.city ? ' • ' : ''}${latestSetlist.city || ''}\n`;
     }
     text += '\n';
 
-    setlist.items.forEach((item) => {
+    localItems.forEach((item) => {
       const song = getSongById(item.songId);
       if (song) {
         const key = item.keyOverride || song.key || '—';
@@ -320,7 +337,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
           <h2>Edit Setlist</h2>
           <button className="btn-back" onClick={() => setIsEditing(false)}>Cancel</button>
         </div>
-        <SetlistForm setlist={setlist} onSubmit={handleUpdate} onCancel={() => setIsEditing(false)} />
+        <SetlistForm setlist={latestSetlist} onSubmit={handleUpdate} onCancel={() => setIsEditing(false)} />
       </div>
     );
   }
@@ -339,10 +356,11 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       </div>
 
       <div className="setlist-info">
-        {setlist.venue && <p><strong>Venue:</strong> {setlist.venue}</p>}
-        {setlist.city && <p><strong>City:</strong> {setlist.city}</p>}
-        {setlist.date && <p><strong>Date:</strong> {formatDate(setlist.date)}</p>}
-        {setlist.notes && <p><strong>Notes:</strong> {setlist.notes}</p>}
+        <h3>{latestSetlist.name}</h3>
+        {latestSetlist.venue && <p><strong>Venue:</strong> {latestSetlist.venue}</p>}
+        {latestSetlist.city && <p><strong>City:</strong> {latestSetlist.city}</p>}
+        {latestSetlist.date && <p><strong>Date:</strong> {formatDate(latestSetlist.date)}</p>}
+        {latestSetlist.notes && <p><strong>Notes:</strong> {latestSetlist.notes}</p>}
       </div>
 
       <div className="setlist-songs-section">
@@ -484,7 +502,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
           >
             <SetlistPrintView
               setlist={{
-                ...setlist,
+                ...latestSetlist,
                 items: localItems.slice().sort((a, b) => a.position - b.position)
               }}
               songs={songs}
