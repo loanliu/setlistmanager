@@ -608,7 +608,27 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
       // Use the database row ID as the setlist identifier
       // This is the actual primary key (id) from the Setlist table
       // The SetlistItems table uses setlistId as a foreign key that references Setlist.id
-      const setId = item.id;
+      // IMPORTANT: We need the numeric database row ID, not UUIDs
+      let setId = item.id;
+      
+      // Check if the ID is a UUID (contains hyphens and is long)
+      const isUUID = setId && typeof setId === 'string' && setId.includes('-') && setId.length > 10;
+      
+      if (isUUID) {
+        // If we got a UUID, try to find a numeric ID field
+        // Some databases might return both id (UUID) and a numeric row ID
+        // Check common field names for numeric IDs
+        if (item.rowId !== undefined && !isNaN(Number(item.rowId))) {
+          setId = item.rowId;
+          console.warn(`Setlist "${item.name || 'unnamed'}" has UUID id=${item.id}, using rowId=${setId} instead`);
+        } else if (item.setlistId !== undefined && !isNaN(Number(item.setlistId))) {
+          setId = item.setlistId;
+          console.warn(`Setlist "${item.name || 'unnamed'}" has UUID id=${item.id}, using setlistId=${setId} instead`);
+        } else {
+          console.error(`Setlist "${item.name || 'unnamed'}" has UUID id=${setId} but no numeric ID found. Available fields:`, Object.keys(item));
+          console.error('This will cause issues with SetlistItems foreign key. n8n should return numeric database row IDs.');
+        }
+      }
       
       console.log(`Mapping setlist: using database id=${setId} for setlist "${item.name || 'unnamed'}"`);
       
@@ -662,7 +682,7 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
       
       // Log items before sorting for debugging
       if (baseSetlist.items.length > 0) {
-        console.log(`Setlist "${baseSetlist.name}" items BEFORE sorting:`, baseSetlist.items.map((it, idx) => ({
+        console.log(`Setlist "${baseSetlist.name}" items BEFORE sorting:`, baseSetlist.items.map((it: SetlistItem, idx: number) => ({
           index: idx,
           position: it.position,
           songId: it.songId,
@@ -675,7 +695,7 @@ export async function fetchSetlists(): Promise<SetlistWithItems[]> {
       
       // Log items after sorting for debugging
       if (sortedItems.length > 0) {
-        console.log(`Setlist "${baseSetlist.name}" items AFTER sorting:`, sortedItems.map((it, idx) => ({
+        console.log(`Setlist "${baseSetlist.name}" items AFTER sorting:`, sortedItems.map((it: SetlistItem, idx: number) => ({
           index: idx,
           position: it.position,
           songId: it.songId,
@@ -749,13 +769,13 @@ export async function syncSetlistItems(
     
     // Ensure positions are sequential (0, 1, 2, ...) and preserve item order
     // IMPORTANT: The order of items in the array determines their position
-    const itemsWithSequentialPositions = items.map((item, index) => ({
+    const itemsWithSequentialPositions = items.map((item: SetlistItem, index: number) => ({
       ...item,
       position: index,
     }));
     
     // Log what we're sending BEFORE creating request body
-    console.log('Items being sent to n8n (in order):', itemsWithSequentialPositions.map((item, idx) => ({
+    console.log('Items being sent to n8n (in order):', itemsWithSequentialPositions.map((item: SetlistItem, idx: number) => ({
       index: idx,
       position: item.position,
       id: item.id,
@@ -880,8 +900,21 @@ export async function saveSetlist(
     }
     
     // Ensure all fields are present, preserve items from original if not in response
+    // IMPORTANT: Use the numeric database row ID, not UUIDs
+    // If n8n returns a UUID, we should refetch to get the actual numeric ID
+    let setId = savedSetlist.id || payload.id;
+    
+    // If the ID looks like a UUID, log a warning and use payload.id if it's numeric
+    if (setId && typeof setId === 'string' && setId.includes('-') && setId.length > 10) {
+      console.warn('n8n returned UUID instead of numeric ID. Using payload.id if numeric, otherwise will need to refetch.');
+      // If payload.id is numeric, use it instead
+      if (payload.id && !payload.id.includes('-')) {
+        setId = payload.id;
+      }
+    }
+    
     const completeSetlist: SetlistWithItems = {
-      id: String(savedSetlist.id || payload.id || crypto.randomUUID()),
+      id: String(setId || ''),
       name: savedSetlist.name || payload.name || '',
       venue: savedSetlist.venue !== undefined ? savedSetlist.venue : payload.venue,
       city: savedSetlist.city !== undefined ? savedSetlist.city : payload.city,
