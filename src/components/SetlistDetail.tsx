@@ -22,7 +22,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   const initialItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
   
   const [isEditing, setIsEditing] = useState(false);
-  const [showPrintView, setShowPrintView] = useState(false);
+  const [showPrintView, setShowPrintView] = useState<'position' | 'singer' | false>(false);
   const [songSearchQuery, setSongSearchQuery] = useState('');
   const [localItems, setLocalItems] = useState<SetlistItem[]>(initialItems);
   const [draggedItem, setDraggedItem] = useState<SetlistItem | null>(null);
@@ -347,12 +347,17 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       <div className="column-header">
         <h2>Setlist</h2>
         <div>
-          <button className="btn-primary" onClick={() => setShowPrintView(true)}>
+          <button className="btn-primary" onClick={() => setShowPrintView('position')}>
             Print Setlist
           </button>
-          <button className="btn-edit" onClick={() => setIsEditing(true)}>Edit</button>
-          <button className="btn-delete" onClick={handleDelete}>Delete</button>
+          <button className="btn-primary" onClick={() => setShowPrintView('singer')}>
+            Print Setlist by Singer
+          </button>
         </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '1.5rem' }}>
+        <button className="btn-edit" onClick={() => setIsEditing(true)}>Edit</button>
+        <button className="btn-delete" onClick={handleDelete}>Delete</button>
       </div>
 
       <div className="setlist-info">
@@ -503,7 +508,39 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
             <SetlistPrintView
               setlist={{
                 ...latestSetlist,
-                items: localItems.slice().sort((a, b) => a.position - b.position)
+                items: (() => {
+                  const sortedItems = localItems.slice();
+                  if (showPrintView === 'singer') {
+                    // Sort by singer name alphabetically
+                    sortedItems.sort((a, b) => {
+                      const songA = getSongById(a.songId);
+                      const songB = getSongById(b.songId);
+                      
+                      const singerA = (a.singerOverride || songA?.singer || '—').trim();
+                      const singerB = (b.singerOverride || songB?.singer || '—').trim();
+                      
+                      // For multiple singers, use the first one for sorting
+                      const firstSingerA = singerA.includes('/') 
+                        ? singerA.split('/')[0].trim() 
+                        : singerA;
+                      const firstSingerB = singerB.includes('/') 
+                        ? singerB.split('/')[0].trim() 
+                        : singerB;
+                      
+                      // Put items without singer (—) at the end
+                      if (firstSingerA === '—' && firstSingerB !== '—') return 1;
+                      if (firstSingerA !== '—' && firstSingerB === '—') return -1;
+                      if (firstSingerA === '—' && firstSingerB === '—') return 0;
+                      
+                      // Case-insensitive alphabetical sort
+                      return firstSingerA.localeCompare(firstSingerB, undefined, { sensitivity: 'base' });
+                    });
+                  } else {
+                    // Sort by position (default)
+                    sortedItems.sort((a, b) => a.position - b.position);
+                  }
+                  return sortedItems;
+                })()
               }}
               songs={songs}
               onClose={() => setShowPrintView(false)}

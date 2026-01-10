@@ -77,26 +77,72 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
             <p className="print-empty">No songs in this setlist</p>
           ) : (
             <ol className="print-song-list">
-              {setlist.items
-                .slice()
-                .sort((a, b) => a.position - b.position)
-                .map((item) => {
-                  const song = getSongById(item.songId);
-                  if (!song) return null;
+              {(() => {
+                // Track cumulative song counts per singer
+                const singerCounts = new Map<string, number>();
+                
+                // Helper function to format count
+                const formatCount = (count: number): string => {
+                  if (count % 1 === 0) {
+                    return count.toString();
+                  } else {
+                    // For decimal numbers, show one decimal place and remove trailing zeros
+                    return count.toFixed(1).replace(/\.0+$/, '');
+                  }
+                };
+                
+                return setlist.items
+                  .slice()
+                  .map((item) => {
+                    const song = getSongById(item.songId);
+                    if (!song) return null;
 
-                  const key = item.keyOverride || song.key || '—';
-                  const singer = item.singerOverride || song.singer || '—';
+                    const key = item.keyOverride || song.key || '—';
+                    const singer = item.singerOverride || song.singer || '—';
 
-                  return (
-                    <li key={item.id} className="print-song-item">
-                      <span className="print-song-title">{song.title}</span>
-                      <span className="print-song-details">
-                        <span className="print-song-key">{key}</span>
-                        <span className="print-song-singer">{singer}</span>
-                      </span>
-                    </li>
-                  );
-                })}
+                    // Calculate count for this singer(s)
+                    if (singer !== '—') {
+                      const singers = singer.includes('/') 
+                        ? singer.split('/').map(s => s.trim()).filter(s => s.length > 0)
+                        : [singer.trim()];
+                      
+                      const increment = singers.length > 1 ? 0.5 : 1;
+                      
+                      singers.forEach(singerName => {
+                        const currentCount = singerCounts.get(singerName) || 0;
+                        singerCounts.set(singerName, currentCount + increment);
+                      });
+                    }
+
+                    // Get the count for display (for single singer or format for multiple)
+                    let displaySinger = singer;
+                    if (singer !== '—') {
+                      if (singer.includes('/')) {
+                        // For multiple singers, show count for each singer separately
+                        // Format: "Donna (0.5)/Tony (1.5)" where each singer's cumulative count is shown
+                        const singers = singer.split('/').map(s => s.trim()).filter(s => s.length > 0);
+                        displaySinger = singers.map(singerName => {
+                          const count = singerCounts.get(singerName) || 0;
+                          return `${singerName} (${formatCount(count)})`;
+                        }).join('/');
+                      } else {
+                        // For single singer, show count
+                        const count = singerCounts.get(singer.trim()) || 0;
+                        displaySinger = `${singer} (${formatCount(count)})`;
+                      }
+                    }
+
+                    return (
+                      <li key={item.id} className="print-song-item">
+                        <span className="print-song-title">{song.title}</span>
+                        <span className="print-song-details">
+                          <span className="print-song-key">{key}</span>
+                          <span className="print-song-singer">{displaySinger}</span>
+                        </span>
+                      </li>
+                    );
+                  });
+              })()}
             </ol>
           )}
         </div>
