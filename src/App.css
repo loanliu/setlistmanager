@@ -995,6 +995,12 @@
   margin-right: 0.5rem;
 }
 
+.print-song-artist {
+  font-weight: normal;
+  color: #666;
+  font-size: 1rem;
+}
+
 .print-song-details {
   display: inline;
   font-size: 0.9rem;
@@ -1234,6 +1240,12 @@
     font-size: 0.9rem;
     display: inline;
     margin-right: 0.5rem;
+  }
+
+  .print-song-artist {
+    font-weight: normal;
+    color: #555;
+    font-size: 0.85rem;
   }
 
   .print-song-details {

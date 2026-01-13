@@ -134,7 +134,10 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
 
                     return (
                       <li key={item.id} className="print-song-item">
-                        <span className="print-song-title">{song.title}</span>
+                        <span className="print-song-title">
+                          {song.title}
+                          {song.artist && <span className="print-song-artist"> — {song.artist}</span>}
+                        </span>
                         <span className="print-song-details">
                           <span className="print-song-key">{key}</span>
                           <span className="print-song-singer">{displaySinger}</span>
