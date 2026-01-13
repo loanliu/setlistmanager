@@ -1012,6 +1012,13 @@
   display: inline-block;
 }
 
+.print-song-notes {
+  display: inline;
+  font-size: 0.9rem;
+  color: #666;
+  margin-left: 0.5rem;
+}
+
 .print-empty {
   text-align: center;
   color: #666;
@@ -1245,6 +1252,13 @@
   .print-song-key::after {
     content: ' • ';
     margin: 0 0.25rem;
+  }
+
+  .print-song-notes {
+    color: #555;
+    font-size: 0.8rem;
+    display: inline;
+    margin-left: 0.25rem;
   }
 
   .print-notes {
