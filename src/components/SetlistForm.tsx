@@ -26,12 +26,14 @@ export function SetlistForm({ setlist, onSubmit, onCancel }: SetlistFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Send empty string for cleared fields (not undefined) so we can distinguish
+    // between "field not provided" vs "field explicitly cleared"
     onSubmit({
       name,
-      venue: venue || undefined,
-      city: city || undefined,
-      date: date || undefined,
-      notes: notes || undefined,
+      venue: venue.trim() || '',
+      city: city.trim() || '',
+      date: date.trim() || '',
+      notes: notes.trim() || '',
     });
   };
 

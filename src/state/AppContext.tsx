@@ -204,14 +204,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Send to n8n with explicit 'create' mode
       await n8nClient.saveSetlist(newSetlist, 'create', false);
       
-      // Try to refetch all setlists, but if it fails, add the new setlist to local state
+      // CRITICAL: Refetch setlists to get the actual database row ID that n8n assigned
+      // n8n might return a UUID, but we need the numeric database row ID for SetlistItems foreign key
       try {
-        console.log('Refetching setlists after add...');
+        console.log('Refetching setlists after add to get actual database row ID...');
+        // Wait a bit for async workflows to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
         const refreshedSetlists = await n8nClient.fetchSetlists();
+        
+        // Find the newly created setlist by name (since ID might have changed)
+        const createdSetlist = refreshedSetlists.find((s) => s.name === newSetlist.name);
+        if (createdSetlist) {
+          console.log(`Found created setlist with database ID: ${createdSetlist.id} (original ID was: ${newId})`);
+        } else {
+          console.warn(`Could not find created setlist "${newSetlist.name}" after refetch`);
+        }
+        
         setSetlists(refreshedSetlists);
       } catch (refetchErr) {
         console.warn('Failed to refetch setlists after add (adding to local state):', refetchErr);
         // Add the newly created setlist to local state even if refetch fails
+        // But warn that we might have the wrong ID
+        console.warn('Using generated ID, but n8n might have assigned a different ID. Items may not link correctly.');
         setSetlists((prev) => [...prev, newSetlist]);
       }
     } catch (err) {
@@ -228,6 +242,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (!existingSetlist) throw new Error('Setlist not found');
       
       // Build setlist with only top-level fields (exclude items)
+      // Note: Empty string means "clear this field", undefined means "keep existing value"
       const setlistToSave = {
         id,
         name: updates.name !== undefined ? updates.name : existingSetlist.name,
@@ -238,6 +253,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Preserve items from existing setlist (not sent to n8n for top-level updates)
         items: existingSetlist.items,
       };
+      
+      console.log('updateSetlist - updates received:', JSON.stringify(updates, null, 2));
+      console.log('updateSetlist - setlistToSave being sent:', JSON.stringify(setlistToSave, null, 2));
       
       await n8nClient.saveSetlist(setlistToSave, 'update', false);
       

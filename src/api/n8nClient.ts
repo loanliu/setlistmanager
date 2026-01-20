@@ -837,12 +837,13 @@ export async function saveSetlist(
     const mode = explicitMode || (payload.id ? 'update' : 'create');
     
     // Build setlist payload - only include top-level fields, exclude items unless explicitly requested
+    // Convert empty strings to null so n8n knows to clear the field (not set it to empty string)
     const setlistPayload: any = {
       name: payload.name || '',
-      venue: payload.venue || '',
-      city: payload.city || '',
-      date: payload.date || '',
-      notes: payload.notes || '',
+      venue: payload.venue === '' ? null : (payload.venue || null),
+      city: payload.city === '' ? null : (payload.city || null),
+      date: payload.date === '' ? null : (payload.date || null),
+      notes: payload.notes === '' ? null : (payload.notes || null),
     };
     
     // Only include id if it exists (for updates)

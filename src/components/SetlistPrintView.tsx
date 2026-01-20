@@ -139,11 +139,13 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
                           {song.artist && <span className="print-song-artist"> — {song.artist}</span>}
                         </span>
                         <span className="print-song-details">
-                          <span className="print-song-key">{key}</span>
+                          <span className="print-song-key">
+                            <strong>Key: {key}</strong>
+                          </span>
                           <span className="print-song-singer">{displaySinger}</span>
                         </span>
                         {song.notes && (
-                          <span className="print-song-notes"> <strong>{song.notes}</strong></span>
+                          <span className="print-song-notes"> Note: {song.notes}</span>
                         )}
                       </li>
                     );
