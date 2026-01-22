@@ -297,27 +297,28 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     });
   }, [availableSongs, songSearchQuery]);
 
-  const handleCopyAsText = async () => {
+  const handleCopyAsText = async (sortedSetlist: Setlist) => {
     const getSongById = (songId: string): Song | undefined => {
       return songs.find((s) => s.id === songId);
     };
 
-    let text = `${latestSetlist.name}\n`;
-    if (latestSetlist.date) {
-      const date = new Date(latestSetlist.date);
+    let text = `${sortedSetlist.name}\n`;
+    if (sortedSetlist.date) {
+      const date = new Date(sortedSetlist.date);
       text += `${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n`;
     }
-    if (latestSetlist.venue || latestSetlist.city) {
-      text += `${latestSetlist.venue || ''}${latestSetlist.venue && latestSetlist.city ? ' • ' : ''}${latestSetlist.city || ''}\n`;
+    if (sortedSetlist.venue || sortedSetlist.city) {
+      text += `${sortedSetlist.venue || ''}${sortedSetlist.venue && sortedSetlist.city ? ' • ' : ''}${sortedSetlist.city || ''}\n`;
     }
     text += '\n';
 
-    localItems.forEach((item) => {
+    // Use the sorted items from the print view (respects current sort order)
+    sortedSetlist.items.forEach((item, index) => {
       const song = getSongById(item.songId);
       if (song) {
         const key = item.keyOverride || song.key || '—';
         const singer = item.singerOverride || song.singer || '—';
-        text += `${item.position + 1}. ${song.title} – ${key} – ${singer}\n`;
+        text += `${index + 1}. ${song.title} – ${key} – ${singer}\n`;
       }
     });
 

@@ -4,7 +4,7 @@ interface SetlistPrintViewProps {
   setlist: Setlist;
   songs: Song[];
   onClose: () => void;
-  onCopy: () => void;
+  onCopy: (setlist: Setlist) => void;
 }
 
 export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPrintViewProps) {
@@ -50,7 +50,7 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
   return (
     <div className="print-view-container">
       <div className="print-view-controls no-print">
-        <button className="btn-primary" onClick={onCopy}>
+        <button className="btn-primary" onClick={() => onCopy(setlist)}>
           Copy as Text
         </button>
         <button className="btn-primary" onClick={() => window.print()}>
