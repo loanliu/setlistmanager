@@ -22,7 +22,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   const initialItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
   
   const [isEditing, setIsEditing] = useState(false);
-  const [showPrintView, setShowPrintView] = useState<'position' | 'singer' | false>(false);
+  const [showPrintView, setShowPrintView] = useState<'position' | 'singer' | 'alphabetical' | false>(false);
   const [songSearchQuery, setSongSearchQuery] = useState('');
   const [localItems, setLocalItems] = useState<SetlistItem[]>(initialItems);
   const [draggedItem, setDraggedItem] = useState<SetlistItem | null>(null);
@@ -349,10 +349,13 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
         <h2>Setlist</h2>
         <div>
           <button className="btn-primary" onClick={() => setShowPrintView('position')}>
-            Print Setlist
+            Setlist
           </button>
           <button className="btn-primary" onClick={() => setShowPrintView('singer')}>
-            Print Setlist by Singer
+            Setlist by Singer
+          </button>
+          <button className="btn-primary" onClick={() => setShowPrintView('alphabetical')}>
+            Setlist in Order
           </button>
         </div>
       </div>
@@ -535,6 +538,18 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
                       
                       // Case-insensitive alphabetical sort
                       return firstSingerA.localeCompare(firstSingerB, undefined, { sensitivity: 'base' });
+                    });
+                  } else if (showPrintView === 'alphabetical') {
+                    // Sort by song title alphabetically
+                    sortedItems.sort((a, b) => {
+                      const songA = getSongById(a.songId);
+                      const songB = getSongById(b.songId);
+                      
+                      const titleA = songA?.title || '';
+                      const titleB = songB?.title || '';
+                      
+                      // Case-insensitive alphabetical sort
+                      return titleA.localeCompare(titleB, undefined, { sensitivity: 'base' });
                     });
                   } else {
                     // Sort by position (default)
