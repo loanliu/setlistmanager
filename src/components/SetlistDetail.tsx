@@ -302,24 +302,69 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       return songs.find((s) => s.id === songId);
     };
 
+    // Format date in local time to avoid off-by-one (YYYY-MM-DD is parsed as UTC otherwise)
+    const formatCopyDate = (dateString: string): string => {
+      try {
+        if (dateString.includes('/')) {
+          const [month, day, year] = dateString.split('/');
+          const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        if (dateString.includes('-')) {
+          const [year, month, day] = dateString.split('-');
+          const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
+          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        }
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? dateString : date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      } catch {
+        return dateString;
+      }
+    };
+
     let text = `${sortedSetlist.name}\n`;
     if (sortedSetlist.date) {
-      const date = new Date(sortedSetlist.date);
-      text += `${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\n`;
+      text += `${formatCopyDate(sortedSetlist.date)}\n`;
     }
     if (sortedSetlist.venue || sortedSetlist.city) {
       text += `${sortedSetlist.venue || ''}${sortedSetlist.venue && sortedSetlist.city ? ' • ' : ''}${sortedSetlist.city || ''}\n`;
     }
     text += '\n';
 
-    // Use the sorted items from the print view (respects current sort order)
+    // Running singer counts (same logic as print view: increment then display)
+    const singerCounts = new Map<string, number>();
+    const formatCount = (count: number): string =>
+      count % 1 === 0 ? count.toString() : count.toFixed(1).replace(/\.0+$/, '');
+
+    // Use the sorted items; each line matches print format: "5. Title — Artist Key: A Singer (1)"
     sortedSetlist.items.forEach((item, index) => {
       const song = getSongById(item.songId);
-      if (song) {
-        const key = item.keyOverride || song.key || '—';
-        const singer = item.singerOverride || song.singer || '—';
-        text += `${index + 1}. ${song.title} – ${key} – ${singer}\n`;
+      if (!song) return;
+      const key = item.keyOverride || song.key || '—';
+      const singer = item.singerOverride || song.singer || '—';
+
+      // Update running count for this singer (then use for display)
+      if (singer !== '—') {
+        const singers = singer.includes('/')
+          ? singer.split('/').map((s) => s.trim()).filter((s) => s.length > 0)
+          : [singer.trim()];
+        const increment = singers.length > 1 ? 0.5 : 1;
+        singers.forEach((name) => {
+          singerCounts.set(name, (singerCounts.get(name) || 0) + increment);
+        });
       }
+
+      let displaySinger = singer;
+      if (singer !== '—') {
+        if (singer.includes('/')) {
+          const singers = singer.split('/').map((s) => s.trim()).filter((s) => s.length > 0);
+          displaySinger = singers.map((name) => `${name} (${formatCount(singerCounts.get(name) || 0)})`).join('/');
+        } else {
+          displaySinger = `${singer} (${formatCount(singerCounts.get(singer.trim()) || 0)})`;
+        }
+      }
+      const artistPart = song.artist ? ` — ${song.artist}` : '';
+      text += `${index + 1}. ${song.title}${artistPart} Key: ${key} ${displaySinger}\n`;
     });
 
     try {
