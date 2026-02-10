@@ -27,11 +27,23 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   const [localItems, setLocalItems] = useState<SetlistItem[]>(initialItems);
   const [draggedItem, setDraggedItem] = useState<SetlistItem | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [manualOrders, setManualOrders] = useState<Record<string, string>>({});
   
   // Use ref to store latest localItems without causing re-renders
   const localItemsRef = useRef(localItems);
   useEffect(() => {
     localItemsRef.current = localItems;
+  }, [localItems]);
+
+  // Keep manual order inputs in sync with the current list order
+  useEffect(() => {
+    const initialOrders: Record<string, string> = {};
+    [...localItems]
+      .sort((a, b) => a.position - b.position)
+      .forEach((item, index) => {
+        initialOrders[item.id] = String(index + 1);
+      });
+    setManualOrders(initialOrders);
   }, [localItems]);
 
   // Create a stable key for items to use as dependency
@@ -203,13 +215,14 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     setDraggedItem(null);
   };
 
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = async (itemsToSave?: SetlistItem[]) => {
     try {
       // Use the latest setlist from context to ensure we have the correct setlistId
       const setlistIdToUse = latestSetlist.id;
       
-      // Ensure localItems are sorted by position before sending
-      const sortedLocalItems = [...localItems].sort((a, b) => a.position - b.position);
+      // Ensure items are sorted by position before sending
+      const items = itemsToSave ?? localItems;
+      const sortedLocalItems = [...items].sort((a, b) => a.position - b.position);
       
       console.log('Saving setlist items - using setlistId:', setlistIdToUse, 'for setlist:', latestSetlist.name);
       console.log('Local items being saved (sorted by position):', sortedLocalItems.map((item, idx) => ({
@@ -241,6 +254,57 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     const sortedItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
     setLocalItems(sortedItems);
     setHasUnsavedChanges(false);
+  };
+
+  const handleSaveManualChanges = async () => {
+    if (localItems.length === 0) {
+      alert('No songs to reorder.');
+      return;
+    }
+
+    // Validate manual positions
+    const usedNumbers = new Set<number>();
+    const itemsWithOrder: { item: SetlistItem; order: number }[] = [];
+
+    const sortedByCurrentPosition = [...localItems].sort((a, b) => a.position - b.position);
+
+    for (const item of sortedByCurrentPosition) {
+      const rawValue = (manualOrders[item.id] || '').trim();
+      const song = getSongById(item.songId);
+
+      if (!rawValue) {
+        alert(`Please enter a position number for every song. Missing value for "${song?.title || 'Unknown song'}".`);
+        return;
+      }
+
+      const num = Number(rawValue);
+      if (!Number.isInteger(num) || num < 1) {
+        alert(`Invalid position "${rawValue}" for "${song?.title || 'Unknown song'}". Please enter a positive whole number.`);
+        return;
+      }
+
+      if (usedNumbers.has(num)) {
+        alert(`Duplicate position number ${num}. Each song must have a unique position.`);
+        return;
+      }
+
+      usedNumbers.add(num);
+      itemsWithOrder.push({ item, order: num });
+    }
+
+    // Sort items by the manual order, then reassign positions sequentially
+    itemsWithOrder.sort((a, b) => a.order - b.order);
+    const reorderedItems: SetlistItem[] = itemsWithOrder.map((entry, index) => ({
+      ...entry.item,
+      position: index,
+    }));
+
+    // Update local state so the UI reflects the new order
+    setLocalItems(reorderedItems);
+    setHasUnsavedChanges(true);
+
+    // Save to backend using the same path as drag-and-drop
+    await handleSaveChanges(reorderedItems);
   };
 
   const formatDate = (dateString?: string) => {
@@ -420,16 +484,21 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       <div className="setlist-songs-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <h2>Songs in Setlist</h2>
-          {hasUnsavedChanges && (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn-primary" onClick={handleSaveChanges}>
-                Save Changes
-              </button>
-              <button className="btn-edit" onClick={handleCancelReorder}>
-                Cancel
-              </button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button className="btn-primary" onClick={handleSaveManualChanges}>
+              Save Manual Changes
+            </button>
+            {hasUnsavedChanges && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn-primary" onClick={() => handleSaveChanges()}>
+                  Save Changes
+                </button>
+                <button className="btn-edit" onClick={handleCancelReorder}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         
         {localItems.length === 0 ? (
@@ -453,8 +522,23 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
                     opacity: draggedItem?.id === item.id ? 0.5 : 1,
                   }}
                 >
-                  <div className="setlist-item-number" style={{ cursor: 'grab' }}>
-                    {index + 1} ⋮⋮
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div className="setlist-item-number" style={{ cursor: 'grab' }}>
+                      {index + 1} ⋮⋮
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      value={manualOrders[item.id] ?? String(index + 1)}
+                      onChange={(e) =>
+                        setManualOrders((prev) => ({
+                          ...prev,
+                          [item.id]: e.target.value,
+                        }))
+                      }
+                      style={{ width: '3rem' }}
+                      aria-label="Manual position"
+                    />
                   </div>
                   <div className="setlist-item-content">
                     <div className="setlist-item-main">
