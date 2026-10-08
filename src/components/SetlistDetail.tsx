@@ -35,16 +35,22 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     localItemsRef.current = localItems;
   }, [localItems]);
 
-  // Keep manual order inputs in sync with the current list order
+  // Songs that no longer exist stay in the saved list, but they are not drawn.
+  // Number only the songs we can show, so a missing song does not leave a hole.
+  const visibleItems = useMemo(() => {
+    const sorted = [...localItems].sort((a, b) => a.position - b.position);
+    if (songs.length === 0) return sorted;
+    return sorted.filter((item) => songs.some((song) => song.id === item.songId));
+  }, [localItems, songs]);
+
+  // Keep manual order inputs in sync with the songs that are actually shown
   useEffect(() => {
     const initialOrders: Record<string, string> = {};
-    [...localItems]
-      .sort((a, b) => a.position - b.position)
-      .forEach((item, index) => {
-        initialOrders[item.id] = String(index + 1);
-      });
+    visibleItems.forEach((item, index) => {
+      initialOrders[item.id] = String(index + 1);
+    });
     setManualOrders(initialOrders);
-  }, [localItems]);
+  }, [visibleItems]);
 
   // Create a stable key for items to use as dependency
   const itemsKey = useMemo(() => {
@@ -267,10 +273,16 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     const itemsWithOrder: { item: SetlistItem; order: number }[] = [];
 
     const sortedByCurrentPosition = [...localItems].sort((a, b) => a.position - b.position);
+    const hiddenItems: SetlistItem[] = [];
 
     for (const item of sortedByCurrentPosition) {
-      const rawValue = (manualOrders[item.id] || '').trim();
       const song = getSongById(item.songId);
+      if (songs.length > 0 && !song) {
+        hiddenItems.push(item);
+        continue;
+      }
+
+      const rawValue = (manualOrders[item.id] || '').trim();
 
       if (!rawValue) {
         alert(`Please enter a position number for every song. Missing value for "${song?.title || 'Unknown song'}".`);
@@ -292,12 +304,20 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       itemsWithOrder.push({ item, order: num });
     }
 
-    // Sort items by the manual order, then reassign positions sequentially
+    // Sort items by the manual order, then reassign positions sequentially.
+    // Rows whose song is gone stay at the end so a later save does not erase them.
     itemsWithOrder.sort((a, b) => a.order - b.order);
-    const reorderedItems: SetlistItem[] = itemsWithOrder.map((entry, index) => ({
+    const reorderedVisible: SetlistItem[] = itemsWithOrder.map((entry, index) => ({
       ...entry.item,
       position: index,
     }));
+    const reorderedItems: SetlistItem[] = [
+      ...reorderedVisible,
+      ...hiddenItems.map((item, index) => ({
+        ...item,
+        position: reorderedVisible.length + index,
+      })),
+    ];
 
     // Update local state so the UI reflects the new order
     setLocalItems(reorderedItems);
@@ -401,9 +421,11 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       count % 1 === 0 ? count.toString() : count.toFixed(1).replace(/\.0+$/, '');
 
     // Use the sorted items; each line matches print format: "5. Title — Artist Key: A Singer (1)"
-    sortedSetlist.items.forEach((item, index) => {
+    let lineNumber = 0;
+    sortedSetlist.items.forEach((item) => {
       const song = getSongById(item.songId);
       if (!song) return;
+      lineNumber += 1;
       const key = item.keyOverride || song.key || '—';
       const singer = item.singerOverride || song.singer || '—';
 
@@ -428,7 +450,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
         }
       }
       const artistPart = song.artist ? ` — ${song.artist}` : '';
-      text += `${index + 1}. ${song.title}${artistPart} Key: ${key} ${displaySinger}\n`;
+      text += `${lineNumber}. ${song.title}${artistPart} Key: ${key} ${displaySinger}\n`;
     });
 
     try {
@@ -501,11 +523,19 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
           </div>
         </div>
         
+        {songs.length > 0 && localItems.length > visibleItems.length && (
+          <p className="empty-state">
+            {localItems.length - visibleItems.length === 1
+              ? '1 song in this setlist is no longer in the song list, so it is not shown. The numbers stay in order.'
+              : `${localItems.length - visibleItems.length} songs in this setlist are no longer in the song list, so they are not shown. The numbers stay in order.`}
+          </p>
+        )}
+
         {localItems.length === 0 ? (
           <p className="empty-state">No songs in this setlist yet. Add some below!</p>
         ) : (
           <div className="setlist-items">
-            {[...localItems].sort((a, b) => a.position - b.position).map((item, index) => {
+            {visibleItems.map((item, index) => {
               const song = getSongById(item.songId);
               if (!song) return null;
               return (
