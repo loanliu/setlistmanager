@@ -91,6 +91,14 @@
   font-weight: 600;
 }
 
+.column-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .column-content {
   width: 100%;
 }
@@ -328,10 +336,6 @@
 .form-actions,
 .modal-actions {
   display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 2rem;
@@ -1056,6 +1060,15 @@
   overflow-y: auto;
 }
 
+.songs-print-content {
+  max-width: 100%;
+}
+
+.songs-print-table th,
+.songs-print-table td {
+  padding: 0.65rem 0.75rem;
+}
+
 /* Print Media Queries */
 @media print {
   /* Reset everything */
@@ -1352,5 +1365,58 @@
   .print-modal,
   .print-view-content {
     max-height: none !important;
+  }
+
+  /* Song catalog print lives in the right column */
+  body:has(.songs-print-overlay) .three-column-layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body:has(.songs-print-overlay) .column-middle {
+    display: none !important;
+  }
+
+  body:has(.songs-print-overlay) .column-right {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  body:has(.songs-print-overlay) .column-content {
+    visibility: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .songs-print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .songs-print-table th,
+  .songs-print-table td {
+    color: black !important;
+    background: white !important;
+    border-bottom: 1px solid #ccc !important;
+    padding: 0.2rem 0.4rem !important;
+    font-size: 0.85rem !important;
+  }
+
+  .songs-print-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .songs-print-table thead {
+    display: table-header-group;
   }
 }

@@ -3,6 +3,7 @@ import { useApp } from '../state/AppContext';
 import type { Song, Setlist } from '../types';
 import { SongTable } from './SongTable';
 import { SongModal } from './SongModal';
+import { SongsPrintView } from './SongsPrintView';
 
 interface SongsViewProps {
   selectedSetlist?: Setlist | null;
@@ -15,6 +16,7 @@ export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist, cu
   const { songs, addSong, updateSong, deleteSong } = useApp();
   const [editingSong, setEditingSong] = useState<Song | undefined>();
   const [showModal, setShowModal] = useState(false);
+  const [showPrintView, setShowPrintView] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterKey, setFilterKey] = useState<string>('all');
   const [filterSinger, setFilterSinger] = useState<string>('all');
@@ -106,9 +108,14 @@ export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist, cu
     <div className="column-content">
       <div className="column-header">
         <h2>Songs</h2>
-        <button className="btn-primary" onClick={handleAdd}>
-          New song
-        </button>
+        <div className="column-header-actions">
+          <button className="btn-primary" onClick={handleAdd}>
+            New song
+          </button>
+          <button className="btn-primary" onClick={() => setShowPrintView(true)}>
+            Print
+          </button>
+        </div>
       </div>
 
       <div className="songs-filters">
@@ -179,6 +186,20 @@ export function SongsView({ selectedSetlist, onAddToSetlist, isSongInSetlist, cu
           onClose={handleClose}
           onSubmit={handleSubmit}
         />
+      )}
+
+      {showPrintView && (
+        <div
+          className="modal-overlay songs-print-overlay"
+          onClick={() => setShowPrintView(false)}
+        >
+          <div
+            className="modal-content print-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SongsPrintView songs={songs} onClose={() => setShowPrintView(false)} />
+          </div>
+        </div>
       )}
     </div>
   );
