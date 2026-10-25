@@ -571,7 +571,10 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
                     />
                   </div>
                   <div className="setlist-item-content">
-                    <div className="setlist-item-main">
+                    <div
+                      className="setlist-item-main"
+                      title={song.artist ? `${song.title} — ${song.artist}` : song.title}
+                    >
                       <strong>{song.title}</strong>
                       {song.artist && <span className="artist"> — {song.artist}</span>}
                     </div>
