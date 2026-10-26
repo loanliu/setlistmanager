@@ -28,6 +28,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
   const [draggedItem, setDraggedItem] = useState<SetlistItem | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [manualOrders, setManualOrders] = useState<Record<string, string>>({});
+  const [showTutorial, setShowTutorial] = useState(false);
   
   // Use ref to store latest localItems without causing re-renders
   const localItemsRef = useRef(localItems);
@@ -255,11 +256,19 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     }
   };
 
-  const handleCancelReorder = () => {
-    // Sort items by position to ensure correct order
+  const handleCancelManualChanges = () => {
+    // Put the number boxes back to the order on screen, and drop any unsaved moves.
     const sortedItems = [...latestSetlist.items].sort((a, b) => a.position - b.position);
     setLocalItems(sortedItems);
     setHasUnsavedChanges(false);
+    const resetOrders: Record<string, string> = {};
+    const songsWeCanShow = songs.length === 0
+      ? sortedItems
+      : sortedItems.filter((item) => songs.some((song) => song.id === item.songId));
+    songsWeCanShow.forEach((item, index) => {
+      resetOrders[item.id] = String(index + 1);
+    });
+    setManualOrders(resetOrders);
   };
 
   const handleSaveManualChanges = async () => {
@@ -504,19 +513,24 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
       </div>
 
       <div className="setlist-songs-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2>Songs in Setlist</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div className="setlist-songs-heading">
+            <h2>Songs in Setlist</h2>
+            <button type="button" className="btn-tutorial" onClick={() => setShowTutorial(true)}>
+              Tutorial
+            </button>
+          </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <button className="btn-primary" onClick={handleSaveManualChanges}>
+            <button className="btn-primary" type="button" onClick={handleSaveManualChanges}>
               Save Manual Changes
+            </button>
+            <button className="btn-edit" type="button" onClick={handleCancelManualChanges}>
+              Cancel
             </button>
             {hasUnsavedChanges && (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button className="btn-primary" onClick={() => handleSaveChanges()}>
+                <button className="btn-primary" type="button" onClick={() => handleSaveChanges()}>
                   Save Changes
-                </button>
-                <button className="btn-edit" onClick={handleCancelReorder}>
-                  Cancel
                 </button>
               </div>
             )}
@@ -644,6 +658,61 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
           )}
         </div>
       </div>
+
+      {showTutorial && (
+        <div className="modal-overlay" onClick={() => setShowTutorial(false)}>
+          <div
+            className="modal-content tutorial-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="setlist-tutorial-title"
+          >
+            <div className="modal-header">
+              <h2 id="setlist-tutorial-title">How to update a setlist</h2>
+              <button type="button" className="modal-close" onClick={() => setShowTutorial(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <ol className="tutorial-steps">
+              <li className="tutorial-step">
+                <span className="tutorial-step-number">1</span>
+                <div>
+                  <h3>Choose a setlist</h3>
+                  <p>On the left, under Previous setlists, click the show you want to change. Its songs open in the middle.</p>
+                </div>
+              </li>
+              <li className="tutorial-step">
+                <span className="tutorial-step-number">2</span>
+                <div>
+                  <h3>Add or remove a song</h3>
+                  <p>To add one, scroll down to Add Song to Setlist. Type the song name, then click Add.</p>
+                  <p>To take one off, click Remove on that song.</p>
+                </div>
+              </li>
+              <li className="tutorial-step">
+                <span className="tutorial-step-number">3</span>
+                <div>
+                  <h3>Move a song up or down</h3>
+                  <p>Press and hold a song with the mouse. Keep holding, and drag it up or down. Let go when it is in the spot you want.</p>
+                </div>
+              </li>
+              <li className="tutorial-step">
+                <span className="tutorial-step-number">4</span>
+                <div>
+                  <h3>Update the setlist</h3>
+                  <p>Click Save Changes. That button shows up after you add, remove, or move a song. That is how you update the list.</p>
+                  <p>If you made a mistake and have not saved yet, click Cancel to put it back.</p>
+                </div>
+              </li>
+            </ol>
+            <div className="tutorial-actions">
+              <button type="button" className="btn-tutorial" onClick={() => setShowTutorial(false)}>
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPrintView && (
         <div 

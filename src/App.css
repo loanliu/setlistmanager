@@ -56,7 +56,8 @@
 
 .three-column-layout {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr 2fr;
+  /* left setlists | middle songs in setlist | right song catalog */
+  grid-template-columns: 0.8fr 1.9fr 1.15fr;
   gap: 0;
   height: 100vh;
   overflow: hidden;
@@ -161,6 +162,84 @@
 
 .btn-edit:hover {
   background: #3a8eef;
+}
+
+.btn-tutorial {
+  background: #f97316;
+  color: #fff;
+  border: none;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.btn-tutorial:hover {
+  background: #ea580c;
+}
+
+.setlist-songs-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.setlist-songs-heading h2 {
+  margin: 0;
+}
+
+.tutorial-modal {
+  min-width: 0;
+  max-width: 560px;
+}
+
+.tutorial-steps {
+  list-style: none;
+  margin: 0;
+  padding: 1.25rem 1.5rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.tutorial-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.tutorial-step-number {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: #f97316;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.tutorial-step h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  color: #213547;
+}
+
+.tutorial-step p {
+  margin: 0 0 0.35rem;
+  color: #333;
+  line-height: 1.45;
+}
+
+.tutorial-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1.5rem 1.5rem;
 }
 
 .btn-delete {
@@ -839,9 +918,9 @@
 /* Responsive */
 /* iPad Pro and larger tablets - use desktop layout */
 @media (min-width: 1024px) and (max-width: 1366px) {
-  /* Ensure iPad Pro uses desktop three-column layout */
+  /* Smaller screens still show three columns, but the setlist gets most of the width */
   .three-column-layout {
-    grid-template-columns: 0.8fr 1.2fr 2fr;
+    grid-template-columns: 0.8fr 2.15fr 1fr;
     gap: 0;
     height: 100vh;
     overflow: hidden;
