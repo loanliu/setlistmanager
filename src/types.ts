@@ -5,6 +5,7 @@ export type Song = {
   singer?: string;
   key?: string;
   tempoBmp?: string;
+  duration?: string; // "m:ss", e.g. "3:45"
   notes?: string;
 };
 

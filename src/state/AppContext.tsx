@@ -90,6 +90,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         singer: songData.singer,
         key: songData.key,
         tempoBmp: songData.tempoBmp,
+        duration: songData.duration,
         notes: songData.notes,
       };
       
@@ -127,6 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         singer: updates.singer !== undefined ? updates.singer : existingSong.singer,
         key: updates.key !== undefined ? updates.key : existingSong.key,
         tempoBmp: updates.tempoBmp !== undefined ? updates.tempoBmp : existingSong.tempoBmp,
+        duration: updates.duration !== undefined ? updates.duration : existingSong.duration,
         notes: updates.notes !== undefined ? updates.notes : existingSong.notes,
       };
       

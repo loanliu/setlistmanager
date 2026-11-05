@@ -5,9 +5,10 @@ interface SetlistPrintViewProps {
   songs: Song[];
   onClose: () => void;
   onCopy: (setlist: Setlist) => void;
+  showTempoAndDuration?: boolean;
 }
 
-export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPrintViewProps) {
+export function SetlistPrintView({ setlist, songs, onClose, onCopy, showTempoAndDuration = false }: SetlistPrintViewProps) {
   const getSongById = (songId: string): Song | undefined => {
     return songs.find((s) => s.id === songId);
   };
@@ -141,6 +142,8 @@ export function SetlistPrintView({ setlist, songs, onClose, onCopy }: SetlistPri
                         <span className="print-song-details">
                           <span className="print-song-key">
                             <strong>Key: {key}</strong>
+                            {showTempoAndDuration && song.tempoBmp && <> Tempo: {song.tempoBmp} Bpm</>}
+                            {showTempoAndDuration && song.duration && <> Duration: {song.duration}</>}
                           </span>
                           <span className="print-song-singer">{displaySinger}</span>
                         </span>

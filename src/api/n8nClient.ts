@@ -174,6 +174,9 @@ const API_BASE = {
   DELETE_SETLIST: getEnvVar('VITE_N8N_DELETE_SETLIST_URL'),
 };
 
+const toOptionalString = (value: unknown): string | undefined =>
+  value === null || value === undefined || value === '' ? undefined : String(value);
+
 async function apiCall<T>(
   url: string,
   options: RequestInit = {}
@@ -270,7 +273,8 @@ export async function fetchSongs(): Promise<Song[]> {
         artist: item.artist || undefined,
         singer: item.singer || undefined,
         key: item.key || undefined,
-        tempoBmp: item.tempoBmp || undefined,
+        tempoBmp: toOptionalString(item.tempoBmp ?? item.tempoBpm),
+        duration: toOptionalString(item.duration),
         notes: item.notes || undefined,
       };
       
@@ -302,6 +306,7 @@ export async function saveSong(song: SongInput, explicitMode?: 'create' | 'updat
       singer: song.singer || '',
       key: song.key || '',
       tempoBmp: song.tempoBmp || '',
+      duration: song.duration || '',
       notes: song.notes || '',
     };
     
@@ -407,6 +412,7 @@ export async function saveSong(song: SongInput, explicitMode?: 'create' | 'updat
         singer: song.singer,
         key: song.key,
         tempoBmp: song.tempoBmp,
+        duration: song.duration,
         notes: song.notes,
       };
       return fallbackSong;
@@ -479,7 +485,8 @@ export async function saveSong(song: SongInput, explicitMode?: 'create' | 'updat
       artist: songData.artist || song.artist,
       singer: songData.singer || song.singer,
       key: songData.key || song.key,
-      tempoBmp: songData.tempoBmp || song.tempoBmp,
+      tempoBmp: toOptionalString(songData.tempoBmp ?? songData.tempoBpm) || song.tempoBmp,
+      duration: toOptionalString(songData.duration) || song.duration,
       notes: songData.notes || song.notes,
     };
     

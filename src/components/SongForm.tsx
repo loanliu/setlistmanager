@@ -12,6 +12,8 @@ export function SongForm({ song, onSubmit, onCancel }: SongFormProps) {
   const [artist, setArtist] = useState('');
   const [singer, setSinger] = useState('');
   const [key, setKey] = useState('');
+  const [bpm, setBpm] = useState('');
+  const [duration, setDuration] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
@@ -20,6 +22,8 @@ export function SongForm({ song, onSubmit, onCancel }: SongFormProps) {
       setArtist(song.artist || '');
       setSinger(song.singer || '');
       setKey(song.key || '');
+      setBpm(song.tempoBmp || '');
+      setDuration(song.duration || '');
       setNotes(song.notes || '');
     }
   }, [song]);
@@ -31,7 +35,8 @@ export function SongForm({ song, onSubmit, onCancel }: SongFormProps) {
       artist: artist || undefined,
       singer: singer || undefined,
       key: key || undefined,
-      tempoBmp: song?.tempoBmp || undefined, // Preserve tempoBmp from existing song
+      tempoBmp: bpm.trim() || undefined,
+      duration: duration.trim() || undefined,
       notes: notes || undefined,
     });
   };
@@ -78,6 +83,34 @@ export function SongForm({ song, onSubmit, onCancel }: SongFormProps) {
           value={key}
           onChange={(e) => setKey(e.target.value)}
           placeholder="e.g., C, Dm, G#"
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="bpm">BPM</label>
+        <input
+          id="bpm"
+          type="number"
+          min={1}
+          max={400}
+          step={1}
+          value={bpm}
+          onChange={(e) => setBpm(e.target.value)}
+          placeholder="e.g., 120"
+        />
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="duration">Duration</label>
+        <input
+          id="duration"
+          type="text"
+          inputMode="numeric"
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+          placeholder="e.g., 3:45"
+          pattern="\d{1,2}:[0-5]\d"
+          title="Minutes and seconds, like 3:45"
         />
       </div>
 

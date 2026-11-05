@@ -390,7 +390,7 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
     });
   }, [availableSongs, songSearchQuery]);
 
-  const handleCopyAsText = async (sortedSetlist: Setlist) => {
+  const handleCopyAsText = async (sortedSetlist: Setlist, includeTempoAndDuration = false) => {
     const getSongById = (songId: string): Song | undefined => {
       return songs.find((s) => s.id === songId);
     };
@@ -459,7 +459,9 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
         }
       }
       const artistPart = song.artist ? ` — ${song.artist}` : '';
-      text += `${lineNumber}. ${song.title}${artistPart} Key: ${key} ${displaySinger}\n`;
+      const tempoPart = includeTempoAndDuration && song.tempoBmp ? ` Tempo: ${song.tempoBmp} Bpm` : '';
+      const durationPart = includeTempoAndDuration && song.duration ? ` Duration: ${song.duration}` : '';
+      text += `${lineNumber}. ${song.title}${artistPart} Key: ${key}${tempoPart}${durationPart} ${displaySinger}\n`;
     });
 
     try {
@@ -791,7 +793,8 @@ export function SetlistDetail({ setlist, onBack, onRegisterAddSong, onRegisterIs
               }}
               songs={songs}
               onClose={() => setShowPrintView(false)}
-              onCopy={handleCopyAsText}
+              onCopy={(sortedSetlist) => handleCopyAsText(sortedSetlist, showPrintView === 'alphabetical')}
+              showTempoAndDuration={showPrintView === 'alphabetical'}
             />
           </div>
         </div>
